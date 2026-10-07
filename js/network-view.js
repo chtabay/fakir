@@ -1,12 +1,14 @@
 /** A canvas view of measured network state. This module never trains or calculates answers. */
-const MINT = [154, 238, 203];
-const AMBER = [237, 188, 118];
-const TEXT = [237, 241, 236];
-const MUTED = [116, 133, 130];
+const MINT = [40, 104, 79];
+const AMBER = [156, 99, 27];
+const TEXT = [34, 34, 34];
+const MUTED = [135, 135, 127];
 const DOMAINS = { add: [0, 18], sub: [-9, 9], mul: [0, 81], div: [0, 9] };
 const SYMBOLS = { add: '+', sub: '−', mul: '×', div: '÷' };
-const DURATION = 900;
 const FRAME_MS = 1000 / 45;
+const AFTER_PHASE = 0.94;
+const FORWARD_WINDOWS = [[0.19, 0.39], [0.39, 0.56], [0.56, 0.68]];
+const biasAngle = value => -Math.PI / 2 + Math.atan(value * 8);
 const MONO = '"IBM Plex Mono", "SFMono-Regular", Consolas, monospace';
 const number = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2, useGrouping: false });
 const outputNumber = new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: false });
@@ -35,6 +37,8 @@ export class NetworkView {
     this.active = null;
     this.queued = null;
     this.lastSample = null;
+    this.lastReceivedNetwork = null;
+    this.lastReceivedType = null;
     // Optional integration hook: emitted only for an example actually shown.
     this.onSample = null;
     this.frame = null;
@@ -67,6 +71,10 @@ export class NetworkView {
       this.lastSample = null;
     }
     this.state = { ...this.state, ...next };
+    if (changesExample) {
+      this.lastReceivedNetwork = this.state.network;
+      this.lastReceivedType = this.state.example?.type;
+    }
     if (this.motionReduced()) this.finishImmediately();
     this.graph = null;
     this.draw();
@@ -76,7 +84,10 @@ export class NetworkView {
   /** Complete the current cycle; coalesce frequent training calls into one latest next cycle. */
   animate(sample, network) {
     if (this.destroyed || !sample || !network) return;
-    const item = { sample, network };
+    const beforeNetwork = this.lastReceivedType === sample.type ? this.lastReceivedNetwork : null;
+    const item = { sample, network, beforeNetwork };
+    this.lastReceivedNetwork = network;
+    this.lastReceivedType = sample.type;
     if (this.motionReduced() || !this.visible || this.doc?.hidden) {
       this.stop();
       this.commit(item);
@@ -107,6 +118,7 @@ export class NetworkView {
   }
 
   notifySample(sample, phase) {
+    this.updateAccessibleLabel(phase === 'before' ? sample.before : sample.after);
     if (typeof this.onSample === 'function') this.onSample(sample, phase);
   }
 
@@ -125,7 +137,10 @@ export class NetworkView {
 
   start(item) {
     this.commit(item);
-    this.active = { ...item, started: this.win.performance.now(), progress: 0, lastDraw: -Infinity, afterNotified: false };
+    this.active = {
+      ...item, started: this.win.performance.now(), progress: 0, lastDraw: -Infinity,
+      afterNotified: false, duration: item.sample.trained <= 25 ? 1500 : 1100,
+    };
     const startedCycle = this.active;
     this.prepareGraph();
     this.prepareSignals();
@@ -136,7 +151,7 @@ export class NetworkView {
       this.frame = null;
       if (!this.active || this.destroyed) return;
       const cycle = this.active;
-      const progress = clamp((now - cycle.started) / DURATION);
+      const progress = clamp((now - cycle.started) / cycle.duration);
       cycle.progress = progress;
       if (now - cycle.lastDraw >= FRAME_MS || progress === 1) {
         this.draw(progress);
@@ -178,13 +193,20 @@ export class NetworkView {
     if (!network || this.graph?.network === network) return;
     const sizes = network.sizes;
     if (!Array.isArray(sizes) || sizes.length !== 4) return;
-    const top = Math.max(34, this.height * 0.115);
-    const bottom = this.height - 94;
-    const left = this.width * 0.08;
-    const right = this.width * 0.92;
+    const left = Math.max(31, this.width * 0.075);
+    const right = this.width - Math.max(24, this.width * 0.065);
+    const railA = this.height * 0.1;
+    const railB = this.height * 0.235;
+    const example = this.state.example ?? {};
+    const a = finite(example.a) ? example.a : 0;
+    const b = finite(example.b) ? example.b : 0;
+    const inputMin = Math.min(0, a, b);
+    const inputMax = Math.max(9, a, b);
+    const inputX = value => mix(left, right, (value - inputMin) / (inputMax - inputMin));
+    const rows = [railA, this.height * 0.435, this.height * 0.645, this.height * 0.82];
     const nodes = sizes.map((count, layer) => Array.from({ length: count }, (_, index) => {
-      const y = mix(top, bottom, layer / (sizes.length - 1));
-      const x = layer === 0 ? this.width * (index === 0 ? 0.33 : 0.67)
+      const y = layer === 0 ? (index === 0 ? railA : railB) : rows[layer];
+      const x = layer === 0 ? inputX(index === 0 ? a : b)
         : count === 1 ? this.width / 2 : mix(left, right, index / (count - 1));
       return { x, y, layer, index };
     }));
@@ -201,7 +223,7 @@ export class NetworkView {
     for (const layer of layers) for (const edge of layer) {
       edge.strength = maxWeight ? Math.sqrt(Math.abs(edge.weight) / maxWeight) : 0;
     }
-    this.graph = { network, nodes, layers };
+    this.graph = { network, nodes, layers, maxWeight, left, right, railA, railB, inputX };
     if (this.active) this.prepareSignals();
   }
 
@@ -209,6 +231,8 @@ export class NetworkView {
     if (!this.active || !this.graph) return;
     const sample = this.active.sample;
     const activations = sample.beforeActivations ?? sample.activations ?? [];
+    const exactBefore = this.active.beforeNetwork?.trained === sample.trained - 1;
+    const beforeWeights = exactBefore ? this.active.beforeNetwork.weights : null;
     const allGradients = sample.gradients?.weights?.flat(2).filter(finite) ?? [];
     const gradientMax = Math.max(0, ...allGradients.map(Math.abs));
     const gradientLevel = Math.min(1, Math.sqrt(gradientMax) * 3);
@@ -217,7 +241,13 @@ export class NetworkView {
       for (let destination = 0; destination < this.graph.nodes[layer + 1].length; destination++) {
         const incoming = edges.filter(edge => edge.destination === destination).map(edge => ({
           ...edge,
-          signal: Math.abs(edge.weight * (activations[layer]?.[edge.source] ?? 0)),
+          signalWeight: beforeWeights?.[layer]?.[edge.destination]?.[edge.source] ?? edge.weight,
+          // A pre-update contribution is known only with the matching snapshot.
+          // For coalesced batches, display the actual source activation instead
+          // of manufacturing a contribution from mismatched parameter states.
+          signal: beforeWeights
+            ? Math.abs(beforeWeights[layer][edge.destination][edge.source] * (activations[layer]?.[edge.source] ?? 0))
+            : Math.abs(activations[layer]?.[edge.source] ?? 0),
         })).filter(edge => edge.signal > 1e-8).sort((a, b) => b.signal - a.signal);
         selected.push(...incoming.slice(0, layer === 2 ? 6 : 2));
       }
@@ -240,37 +270,42 @@ export class NetworkView {
     this.prepareGraph();
     if (!this.graph) return;
     const active = this.active;
-    const after = !active || progress >= 0.88;
+    const after = !active || progress >= AFTER_PHASE;
     const prediction = active && !after
       ? { value: active.sample.before, activations: active.sample.beforeActivations }
       : this.state.prediction;
     const activations = prediction?.activations ?? [];
+    const beforeWeights = active && progress < 0.74 && active.beforeNetwork?.trained === active.sample.trained - 1
+      ? active.beforeNetwork.weights : null;
     ctx.lineCap = 'round';
     for (const edges of this.graph.layers) for (const edge of edges) {
-      if (edge.strength < 1e-6) continue;
-      ctx.strokeStyle = rgba(edge.weight >= 0 ? MINT : AMBER, 0.023 + edge.strength * 0.17);
-      ctx.lineWidth = 0.45 + edge.strength * 0.6;
+      const weight = beforeWeights?.[edge.layer]?.[edge.destination]?.[edge.source] ?? edge.weight;
+      const strength = this.graph.maxWeight ? clamp(Math.sqrt(Math.abs(weight) / this.graph.maxWeight)) : 0;
+      if (strength < 1e-6) continue;
+      ctx.strokeStyle = rgba(weight >= 0 ? MINT : AMBER, 0.045 + strength * 0.19);
+      ctx.lineWidth = 0.45 + strength * 0.45;
       ctx.beginPath();
       ctx.moveTo(edge.from.x, edge.from.y);
       ctx.lineTo(edge.to.x, edge.to.y);
       ctx.stroke();
     }
+    this.drawRails(progress);
     if (active) this.drawFlow(progress);
     for (const layer of this.graph.nodes) for (const node of layer) {
+      if (node.layer === 0) continue;
       const activation = activations[node.layer]?.[node.index] ?? 0;
       let pulse = 0;
       let correction = 0;
       if (active) {
-        const arrival = node.layer / 3 * 0.46;
-        pulse = Math.max(0, 1 - Math.abs(progress - arrival) / 0.095) * Math.min(1, Math.abs(activation));
-        const returnArrival = 0.58 + (3 - node.layer) / 3 * 0.32;
+        const arrival = FORWARD_WINDOWS[node.layer - 1][1];
+        pulse = Math.max(0, 1 - Math.abs(progress - arrival) / 0.075) * Math.min(1, Math.abs(activation));
+        const returnArrival = 0.74 + (3 - node.layer) / 3 * 0.2;
         const delta = active.sample.gradients?.deltas?.[node.layer - 1]?.[node.index] ?? 0;
         correction = Math.max(0, 1 - Math.abs(progress - returnArrival) / 0.085)
           * (active.maxDelta ? Math.sqrt(Math.abs(delta) / active.maxDelta) : 0) * active.gradientLevel;
       }
-      const label = node.layer === 0 ? format(node.index === 0 ? this.state.example?.a : this.state.example?.b)
-        : node.layer === 3 ? format(prediction?.value, true) : null;
-      this.drawNode(node, activation, label, pulse, correction);
+      const label = node.layer === 3 ? format(prediction?.value, true) : null;
+      this.drawNode(node, activation, label, pulse, correction, progress);
     }
     this.drawAxis(prediction?.value, after ? this.lastSample : null);
     if (active && after && !active.afterNotified) {
@@ -279,61 +314,123 @@ export class NetworkView {
     }
   }
 
-  glow(x, y, radius, color, strength) {
-    if (strength <= 0) return;
-    const gradient = this.ctx.createRadialGradient(x, y, 0, x, y, radius);
-    gradient.addColorStop(0, rgba(color, strength));
-    gradient.addColorStop(0.4, rgba(color, strength * 0.28));
-    gradient.addColorStop(1, rgba(color, 0));
-    this.ctx.fillStyle = gradient;
-    this.ctx.beginPath();
-    this.ctx.arc(x, y, radius, 0, Math.PI * 2);
-    this.ctx.fill();
+  drawRails(progress) {
+    const ctx = this.ctx;
+    const { left, right, railA, railB, inputX, nodes } = this.graph;
+    const [pointA, pointB] = nodes[0];
+    // The two positions encode A and B. The connecting segment makes their
+    // difference visible; it is not a claim of classical mechanical inference.
+    ctx.strokeStyle = rgba(MUTED, 0.38);
+    ctx.lineWidth = 0.8;
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath(); ctx.moveTo(pointA.x, railA); ctx.lineTo(pointA.x, railB); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = rgba(MINT, 0.86);
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(pointA.x, railA); ctx.lineTo(pointB.x, railB); ctx.stroke();
+    const angle = Math.atan2(railB - railA, pointB.x - pointA.x);
+    ctx.fillStyle = rgba(MINT, 0.9);
+    ctx.beginPath();
+    ctx.moveTo(pointB.x, railB);
+    ctx.lineTo(pointB.x - 7 * Math.cos(angle - 0.4), railB - 7 * Math.sin(angle - 0.4));
+    ctx.lineTo(pointB.x - 7 * Math.cos(angle + 0.4), railB - 7 * Math.sin(angle + 0.4));
+    ctx.closePath(); ctx.fill();
+    [railA, railB].forEach((y, index) => {
+      ctx.strokeStyle = rgba(TEXT, 0.38);
+      ctx.lineWidth = 0.8;
+      ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(right, y); ctx.stroke();
+      ctx.font = `400 9px ${MONO}`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      for (let digit = 0; digit <= 9; digit++) {
+        const x = inputX(digit);
+        ctx.beginPath(); ctx.moveTo(x, y - 3); ctx.lineTo(x, y + 3); ctx.stroke();
+        ctx.fillStyle = rgba(TEXT, 0.72);
+        ctx.fillText(String(digit), x, y + 8);
+      }
+      ctx.font = `600 11px ${MONO}`;
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = rgba(TEXT, 0.9);
+      ctx.fillText(index === 0 ? 'A' : 'B', 9, y);
+      const point = nodes[0][index];
+      ctx.fillStyle = '#fff'; ctx.strokeStyle = rgba(MINT, 1); ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.arc(point.x, point.y, 5.2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    });
+    if (this.active && progress <= 0.19) {
+      const t = clamp(progress / 0.19);
+      this.drawBall(mix(pointA.x, pointB.x, t), mix(railA, railB, t), 4.2, TEXT, 1);
+    }
   }
 
-  drawNode(node, activation, label, pulse, correction) {
+  drawBall(x, y, radius, color, opacity = 1) {
     const ctx = this.ctx;
-    const major = label !== null;
-    const radius = major ? (node.layer === 3 ? 21 : 17) : Math.max(3.2, Math.min(4.2, this.width / 95));
+    ctx.fillStyle = rgba(color, opacity);
+    ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = `rgba(255,255,255,${opacity * 0.8})`;
+    ctx.beginPath(); ctx.arc(x - radius * 0.27, y - radius * 0.32, radius * 0.24, 0, Math.PI * 2); ctx.fill();
+  }
+
+  drawNode(node, activation, label, pulse, correction, progress) {
+    const ctx = this.ctx;
+    const major = node.layer === 3;
+    const radius = major ? 12 : Math.max(7, Math.min(10, this.width / 48));
     const activity = clamp(Math.abs(activation));
-    const color = !major && activation < 0 ? AMBER : MINT;
-    this.glow(node.x, node.y, radius * (major ? 2.3 : 4), color, (major ? 0.055 : 0.04) + activity * 0.13 + pulse * 0.2);
-    if (correction > 0) this.glow(node.x, node.y, radius * 4, AMBER, correction * 0.42);
-    const gradient = ctx.createRadialGradient(node.x - radius * 0.3, node.y - radius * 0.4, 0, node.x, node.y, radius);
-    gradient.addColorStop(0, rgba(color, major ? 0.16 + activity * 0.13 : 0.45 + activity * 0.4));
-    gradient.addColorStop(1, major ? '#142620' : rgba(color, 0.15 + activity * 0.45));
-    ctx.fillStyle = gradient;
-    ctx.strokeStyle = rgba(correction > 0.2 ? AMBER : color, 0.25 + activity * 0.35 + pulse * 0.3);
-    ctx.lineWidth = major ? 1 : 0.7;
+    const color = activation < 0 ? AMBER : MINT;
+    const bias = this.state.network.biases?.[node.layer - 1]?.[node.index] ?? 0;
+    const oldBias = this.active?.beforeNetwork?.biases?.[node.layer - 1]?.[node.index];
+    const newAngle = biasAngle(bias);
+    const oldAngle = finite(oldBias) ? biasAngle(oldBias) : newAngle;
+    const correctionProgress = this.active ? clamp((progress - 0.74) / 0.2) : 1;
+    const angle = mix(oldAngle, newAngle, correctionProgress);
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = rgba(TEXT, 0.6);
+    ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = rgba(color, 0.04 + activity * 0.14 + pulse * 0.08);
+    ctx.beginPath(); ctx.arc(node.x, node.y, radius - 1, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = rgba(color, 0.55 + pulse * 0.3);
+    ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(node.x, node.y, radius + 2, -Math.PI / 2, -Math.PI / 2 + activity * Math.PI * 2); ctx.stroke();
+    // Every dial has the same fixed, monotonic scale: atan(8 × actual bias).
+    // The ghost pointer and correction arc use a real earlier snapshot only.
+    if (finite(oldBias) && Math.abs(newAngle - oldAngle) > 0.0001 && correctionProgress > 0) {
+      ctx.strokeStyle = rgba(MUTED, 0.6); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(node.x, node.y);
+      ctx.lineTo(node.x + Math.cos(oldAngle) * radius * 0.75, node.y + Math.sin(oldAngle) * radius * 0.75); ctx.stroke();
+      ctx.strokeStyle = rgba(AMBER, 0.9); ctx.lineWidth = 1.8;
+      ctx.beginPath(); ctx.arc(node.x, node.y, radius + 4, oldAngle, angle, angle < oldAngle); ctx.stroke();
+      this.drawBall(node.x + Math.cos(angle) * (radius + 4), node.y + Math.sin(angle) * (radius + 4), 1.5, AMBER, 0.9);
+    }
+    ctx.strokeStyle = rgba(TEXT, 0.95); ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.moveTo(node.x, node.y);
+    ctx.lineTo(node.x + Math.cos(angle) * radius * 0.75, node.y + Math.sin(angle) * radius * 0.75); ctx.stroke();
+    ctx.fillStyle = rgba(TEXT, 0.95);
+    ctx.beginPath(); ctx.arc(node.x, node.y, 1.7, 0, Math.PI * 2); ctx.fill();
+    if (pulse > 0.02) this.drawBall(node.x, node.y - radius - 4 - pulse * 5, 1.6 + activity * 1.6, color, 0.75);
+    if (correction > 0.01) {
+      ctx.strokeStyle = rgba(AMBER, correction * 0.9); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(node.x, node.y, radius + 5 + correction * 3, 0, Math.PI * 2); ctx.stroke();
+    }
     if (major) {
-      ctx.fillStyle = rgba(TEXT, 0.96);
-      const fontSize = node.layer === 0 ? 15 : Math.min(13, radius * 1.95 / Math.max(1, label.length * 0.64));
-      ctx.font = `400 ${fontSize}px ${MONO}`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(label, node.x, node.y + 0.5);
-    } else {
-      ctx.fillStyle = rgba(TEXT, 0.18 + activity * 0.5 + pulse * 0.2);
-      ctx.beginPath();
-      ctx.arc(node.x, node.y, 0.9 + activity * 0.5, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.fillStyle = rgba(TEXT, 0.98); ctx.font = `400 12px ${MONO}`;
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(`≈ ${label}`, node.x + 23, node.y);
     }
   }
 
   drawFlow(progress) {
     const active = this.active;
     if (!active) return;
-    const backwards = progress >= 0.58 && progress <= 0.92;
-    const forwards = progress <= 0.46;
+    const backwards = progress >= 0.74 && progress <= 0.94;
+    const forwards = progress >= 0.19 && progress <= 0.68;
     if (!backwards && !forwards) return;
-    const global = backwards ? (progress - 0.58) / 0.34 * 3 : progress / 0.46 * 3;
-    const segment = Math.min(2, Math.floor(global));
+    const global = backwards ? (progress - 0.74) / 0.2 * 3 : 0;
+    const segment = backwards ? Math.min(2, Math.floor(global))
+      : Math.max(0, FORWARD_WINDOWS.findIndex(([start, end]) => progress >= start && progress <= end));
     const layer = backwards ? 2 - segment : segment;
-    const position = clamp(global - segment);
+    const [start, end] = FORWARD_WINDOWS[layer];
+    const position = backwards ? clamp(global - segment) : clamp((progress - start) / (end - start));
     const edges = (backwards ? active.backward : active.forward)?.[layer] ?? [];
     for (const edge of edges) {
       const strength = backwards ? edge.signal : Math.min(1, Math.sqrt(edge.signal) * 2.3);
@@ -341,7 +438,7 @@ export class NetworkView {
       const t = backwards ? 1 - position : position;
       const x = mix(edge.from.x, edge.to.x, t);
       const y = mix(edge.from.y, edge.to.y, t);
-      const color = backwards ? AMBER : edge.weight >= 0 ? MINT : AMBER;
+      const color = backwards ? AMBER : (edge.signalWeight ?? edge.weight) >= 0 ? MINT : AMBER;
       const tail = clamp(t + (backwards ? 0.11 : -0.11));
       this.ctx.strokeStyle = rgba(color, strength * 0.55);
       this.ctx.lineWidth = 0.7 + strength;
@@ -349,11 +446,7 @@ export class NetworkView {
       this.ctx.moveTo(mix(edge.from.x, edge.to.x, tail), mix(edge.from.y, edge.to.y, tail));
       this.ctx.lineTo(x, y);
       this.ctx.stroke();
-      this.glow(x, y, 8, color, strength * 0.33);
-      this.ctx.fillStyle = rgba(color, 0.25 + strength * 0.7);
-      this.ctx.beginPath();
-      this.ctx.arc(x, y, 1 + strength * 1.1, 0, Math.PI * 2);
-      this.ctx.fill();
+      this.drawBall(x, y, 1.2 + strength * 1.6, color, 0.25 + strength * 0.7);
     }
   }
 
@@ -370,16 +463,16 @@ export class NetworkView {
     const padding = (maximum - minimum || 1) * 0.04;
     if (minimum < domain[0]) minimum -= padding;
     if (maximum > domain[1]) maximum += padding;
-    const left = Math.max(30, this.width * 0.115);
+    const left = Math.max(30, this.width * 0.16);
     const right = this.width - left;
-    const y = this.height - 47;
+    const y = this.height - 24;
     const xOf = n => mix(left, right, (n - minimum) / (maximum - minimum || 1));
     const px = xOf(value);
     const output = this.graph.nodes.at(-1)[0];
     ctx.strokeStyle = rgba(MINT, 0.1);
     ctx.lineWidth = 0.7;
     ctx.beginPath();
-    ctx.moveTo(output.x, output.y + 23);
+    ctx.moveTo(output.x, output.y + 15);
     ctx.bezierCurveTo(output.x, y - 12, px, y - 14, px, y);
     ctx.stroke();
     ctx.strokeStyle = rgba(MUTED, 0.3);
@@ -411,28 +504,26 @@ export class NetworkView {
       ctx.strokeStyle = rgba(AMBER, 0.38);
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(tx, y); ctx.lineTo(px, y); ctx.stroke();
-      ctx.strokeStyle = rgba(AMBER, 0.9);
+      ctx.strokeStyle = rgba(MINT, 0.9);
       ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(tx, y - 6); ctx.lineTo(tx, y + 6); ctx.stroke();
       ctx.textAlign = 'center';
       ctx.textBaseline = 'bottom';
-      ctx.fillStyle = rgba(AMBER, 0.86);
+      ctx.fillStyle = rgba(MINT, 0.92);
       const labelX = clamp(tx, left + 18, right - 18);
       ctx.fillText(`cible ${format(target)}`, labelX, y - 10);
     }
-    this.glow(px, y, 10, MINT, 0.18);
-    ctx.fillStyle = rgba(MINT, 1);
+    ctx.fillStyle = rgba(TEXT, 1);
     ctx.beginPath(); ctx.arc(px, y, 3.2, 0, Math.PI * 2); ctx.fill();
   }
 
-  updateAccessibleLabel() {
+  updateAccessibleLabel(value = this.state.prediction?.value) {
     const example = this.state.example;
-    const value = this.state.prediction?.value;
     if (!example || !finite(value)) return;
     this.canvas.setAttribute('aria-label',
-      `Réseau neuronal, ${format(example.a)} ${SYMBOLS[example.type] ?? ''} ${format(example.b)}. `
+      `Entrée A ${format(example.a)}, entrée B ${format(example.b)}, opération ${SYMBOLS[example.type] ?? ''}. `
       + `Proposition ${format(value, true)}${finite(example.target) ? `, cible ${format(example.target)}` : ''}. `
-      + 'Les liens représentent les poids appris.');
+      + 'Deux rails gradués représentent les entrées. Les potards montrent les biais appris et les impulsions les signaux réels.');
   }
 
   destroy() {

@@ -6,16 +6,16 @@
 
 Fakir est un clicker jouable dans le navigateur. Chaque entraînement présente un exemple à un petit réseau neuronal : il propose une réponse, reçoit une correction, puis ajuste ses connexions. La progression ouvre de nouvelles opérations, des améliorations et une calculatrice qui réutilise les apprentissages.
 
-Le projet reprend l'idée d'un plateau de fakir pour rendre l'apprentissage visible. Le plateau représente le réseau ; les billes et les lumières illustrent ses étapes. Il ne s'agit pas d'une simulation physique de collisions.
+Le projet reprend l'idée d'un plateau de fakir pour rendre l'apprentissage visible. Deux rails gradués placent les entrées **A** et **B** ; leur position et la direction du segment qui les relie décrivent le couple. L'angle seul ne suffit pas à identifier les deux valeurs. La bille, les connexions et les potards représentent les signaux et les biais du réseau multicouche, sans simuler des collisions physiques.
 
 ## Jouer
 
-Commence par **2 + 3**. Lance des exemples, observe l'écart entre la proposition et la cible, puis utilise les éclats gagnés pour améliorer la machine et accélérer son entraînement.
+Commence par **2 + 3** avec un bouton et un compteur. Les améliorations, le choix des entrées, les mesures et les vues supplémentaires apparaissent progressivement. Les crédits gagnés permettent ensuite d'accélérer l'entraînement.
 
-- **La machine** montre les connexions, la prédiction et la correction.
+- **La machine** montre les deux rails d'entrée, les connexions, la prédiction et la correction. Une fois les sélecteurs disponibles, passer de `2 + 3` à `2 + 1` change la géométrie d'entrée et les signaux observés.
 - **Le répertoire** permet d'examiner les erreurs calcul par calcul.
 - **La calculatrice** assemble les petites opérations apprises pour traiter des calculs plus longs.
-- **Les réglages** permettent d'ajuster les effets, d'exporter la progression, de la réimporter ou de recommencer.
+- **Partie**, en bas de page, permet d'ajuster les effets, d'exporter la progression, de la réimporter ou de recommencer.
 
 Un compteur indique le travail effectué. Les jauges de qualité sont calculées à partir des réponses du modèle : elles peuvent progresser, stagner ou reculer au cours de l'entraînement.
 
@@ -41,7 +41,7 @@ Pour produire un fichier HTML qui s'ouvre par double-clic, avec Node.js et npm :
 npm run build
 ```
 
-Le résultat est `dist/fakir.html`. Il contient le jeu, ses styles et ses icônes ; aucune installation de dépendances ni connexion internet n'est nécessaire pour le jouer. Les polices distantes sont remplacées par les polices de repli de l'appareil.
+Le résultat est `dist/fakir.html`. Il contient le jeu, ses styles et ses icônes ; aucune installation de dépendances ni connexion internet n'est nécessaire pour le jouer. L'interface utilise les polices système de l'appareil.
 
 La sauvegarde locale dépend de ce que le navigateur autorise pour un fichier ouvert directement. L'export et l'import JSON restent disponibles pour conserver une expérience et la transférer entre ce fichier, la version locale servie par HTTP et une version publiée.
 
@@ -49,7 +49,7 @@ La sauvegarde locale dépend de ce que le navigateur autorise pour un fichier ou
 
 La progression est enregistrée dans le `localStorage` du navigateur. L'état appris comprend les poids des réseaux, les mémoires de l'optimiseur et l'état du générateur pseudoaléatoire ; reprendre une expérience conserve donc son apprentissage.
 
-Utilise **Réglages → Exporter la progression** pour obtenir un fichier JSON, puis **Importer une progression** pour le reprendre ailleurs. Cette exportation est utile avant un changement d'appareil, de navigateur ou d'adresse du jeu : chaque origine web dispose de son propre stockage. La copie locale et une publication GitHub Pages n'utilisent donc pas automatiquement la même sauvegarde.
+Utilise **Partie → Exporter** pour obtenir un fichier JSON, puis **Importer** pour le reprendre ailleurs. Cette exportation est utile avant un changement d'appareil, de navigateur ou d'adresse du jeu : chaque origine web dispose de son propre stockage. La copie locale et une publication GitHub Pages n'utilisent donc pas automatiquement la même sauvegarde.
 
 Les données restent dans le navigateur et dans les fichiers que tu exportes. Il n'y a pas de synchronisation entre appareils.
 
@@ -80,6 +80,7 @@ Elle accepte une opération entre deux nombres signés, avec au plus trois chiff
 | `favicon.svg` | Icône du projet. |
 | `js/game.js` | Interface, progression du clicker et coordination du jeu. |
 | `js/learning.js` | Réseaux, entraînement, évaluation et état des modèles ; indépendant du DOM. |
+| `js/network-view.js` | Rails d'entrée, signaux, potards des biais et animation des corrections. |
 | `js/calculator.js` | Composition des calculs à partir des prédictions élémentaires. |
 | `tests/` | Tests automatisés exécutés avec Node.js. |
 | `docs/learning.md` | Explication technique, sources et limites de l'expérience. |
@@ -102,7 +103,7 @@ Pour vérifier l'expérience, lance aussi le jeu dans le navigateur : entraîne 
 
 ## Publier sur GitHub Pages
 
-Cette section décrit la procédure de publication ; elle ne signifie pas que le site est déjà publié.
+Cette section décrit comment publier une copie du projet.
 
 1. Crée un dépôt public et place les fichiers du projet sur sa branche `main`, avec `index.html` et `.nojekyll` à la racine.
 2. Ouvre **Settings → Pages** dans le dépôt.

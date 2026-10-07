@@ -63,7 +63,7 @@ Un exemple produit une mise à jour. Les commandes accélérées présentent plu
 
 Le curriculum automatique des additions commence par répéter `2 + 3` pendant les 20 premiers exemples. Il passe ensuite aux chiffres de 0 à 4 jusqu'à 200 exemples entraînés, puis aux chiffres de 0 à 9. Les autres familles utilisent leur grille complète par défaut.
 
-Ce curriculum décrit le moteur. Les chapitres et les améliorations du clicker règlent l'accès aux commandes et le rythme des exemples ; ils ne constituent pas une mesure scientifique indépendante.
+Ce curriculum décrit le mode automatique du moteur. Le clicker choisit ses programmes selon l'étape atteinte et révèle progressivement les commandes : améliorations, sélecteurs d'entrées, mesures, répertoire, puis calculatrice. L'ouverture reste limitée au premier calcul et à son bouton. Cette progression d'interface ne constitue pas une mesure scientifique indépendante.
 
 ## Le professeur et la prédiction
 
@@ -91,9 +91,11 @@ Les réponses de division restent décimales dans le moteur : `1 ÷ 2` a pour ci
 
 ## Le rôle du plateau
 
-Le plateau et ses animations servent à lire le réseau : entrées, activité des neurones, connexions et retour de correction. Une bille représente un exemple présenté au modèle.
+La [visualisation](../js/network-view.js) commence par deux rails gradués : **A** sur le premier, **B** sur le second. Les deux positions et le segment orienté qui les relie rendent l'entrée visible. Passer de `2 + 3` à `2 + 1` déplace B et change la direction de départ. Il faut lire **la position et la direction ensemble** : à échelle fixe, les couples `(2, 3)` et `(4, 5)` ont le même angle, mais occupent des positions différentes. Le moteur reçoit toujours les deux valeurs numériques ; il ne reconstruit pas les nombres à partir du dessin.
 
-Cette représentation ne simule pas une bille matérielle heurtant des clous. Le résultat est produit par les opérations numériques du réseau. La visualisation expose son activité sans devenir une deuxième implémentation de l'apprentissage.
+Sous les rails, les deux couches cachées de douze neurones et la sortie représentent le MLP réel. Les liaisons reflètent les poids ; les potards montrent les biais appris sur une échelle angulaire fixe, fondée sur `atan(8 × biais)`. L'activité des neurones et les impulsions utilisent les activations du modèle ; le retour de correction utilise ses gradients. Lorsqu'un état précédent correspondant est disponible, les signaux descendants reflètent les contributions `poids × activation`. Pour des entraînements groupés dont les étapes visuelles sont condensées, les activations réelles sont montrées sans inventer un état intermédiaire.
+
+Une sélection de signaux est dessinée pour garder le plateau lisible. La bille représente un exemple et son passage dans le réseau : elle ne rebondit pas selon une simulation physique de collisions. Les opérations numériques du MLP produisent la réponse ; la visualisation expose leur activité sans devenir une deuxième implémentation de l'apprentissage.
 
 ## Sauvegarde et reprise
 
