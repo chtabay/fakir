@@ -6,6 +6,7 @@
   --line: #ccc;
   --sans: Arial, Helvetica, sans-serif;
   --mono: "Courier New", Courier, monospace;
+  --board-height: clamp(440px, 64svh, 560px);
 }
 
 * { box-sizing: border-box; }
@@ -33,7 +34,7 @@ strong { font-weight: 400; }
 .current-calculation { margin: 4px 0 7px; font: 19px/1.4 var(--mono); }
 .input-controls { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; font: 14px var(--mono); }
 .input-controls select { min-width: 46px; padding: 3px 5px; border: 1px solid #aaa; border-radius: 2px; background: #fff; }
-.network-stage { width: 100%; height: 340px; margin: 0; }
+.network-stage { width: 100%; height: var(--board-height); margin: 0; }
 .network-stage canvas { display: block; width: 100%; height: 100%; }
 .prediction-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 10px 0 14px; max-width: 360px; }
 .prediction-row span { display: block; font-size: 12px; color: var(--muted); }
@@ -53,7 +54,6 @@ strong { font-weight: 400; }
 .view-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
 .view-tab { border-color: transparent; padding: 3px 7px; background: none; font-size: 12px; }
 .view-tab.selected { border-color: #aaa; background: #eee; }
-.tab-lock { display: none; }
 .operation-switcher { display: flex; gap: 5px; margin-bottom: 10px; }
 .operation-button { min-width: 30px; padding: 3px 7px; font: 16px var(--mono); }
 .operation-button.active { border-color: #222; background: #ddd; }
@@ -63,10 +63,7 @@ strong { font-weight: 400; }
 .currency { margin: 0 0 13px; }
 .upgrades { display: grid; gap: 12px; }
 .upgrade { display: grid; gap: 4px; padding: 0; background: none; border: 0; }
-.upgrade-header { display: flex; align-items: center; gap: 8px; }
-.upgrade-header strong { font-size: 12px; }
-.upgrade-header small { margin-left: 8px; color: var(--muted); font: 11px var(--mono); }
-.upgrade-icon, .upgrade p, .upgrade.locked { display: none; }
+.upgrade > small { color: var(--muted); font: 11px/1.4 var(--mono); }
 .upgrade button { display: inline-flex; align-items: center; justify-content: space-between; gap: 14px; width: max-content; max-width: 100%; font-size: 12px; }
 .upgrade button > span:last-child { font-family: var(--mono); }
 .measure-card { margin-top: 26px; max-width: 300px; }
@@ -74,7 +71,6 @@ strong { font-weight: 400; }
 .measure-heading > span { color: var(--muted); font-size: 11px; }
 .metric-row { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-top: 6px; font-size: 12px; }
 .metric-row strong { font: 12px var(--mono); white-space: nowrap; }
-.sparkline { width: 100%; height: 70px; }
 
 .panel-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
 .panel-heading > span { font-size: 12px; color: var(--muted); }
@@ -94,7 +90,6 @@ strong { font-weight: 400; }
 .calculator-input button { min-width: 40px; font: 20px var(--mono); }
 .calculator-keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: 8px; }
 .calculator-keys button { min-height: 31px; font: 14px var(--mono); }
-.muted { margin-top: 10px; color: var(--muted); font-size: 11px; }
 .calculation-output { margin-top: 18px; font-size: 12px; }
 .calculation-output:empty { display: none; }
 .calculation-output strong { display: block; margin: 7px 0; font: 22px var(--mono); }
@@ -118,7 +113,7 @@ dialog p { margin: 10px 0; font-size: 12px; }
 .save-status.failed { color: #8a2626; }
 .reset-section { margin-top: 20px; padding-top: 16px; border-top: 1px solid #ddd; }
 .danger-button { border-color: #9b7272; }
-.settings-version { margin-top: 18px; color: var(--muted); font: 10px var(--mono); }
+.previous-game { display: inline-block; margin-top: 18px; color: var(--muted); font-size: 12px; }
 .toast { position: fixed; bottom: 20px; left: 24px; max-width: min(480px, calc(100% - 48px)); padding: 9px 12px; border: 1px solid #999; background: #fff; color: #222; font-size: 12px; opacity: 0; pointer-events: none; z-index: 40; }
 .toast.visible { opacity: 1; }
 .noscript { padding: 16px 24px; }
@@ -129,16 +124,16 @@ dialog p { margin: 10px 0; font-size: 12px; }
   .utilities { flex: none; width: min(480px, 100%); padding-top: 0; }
   .utilities:not(:has(> :not([hidden]))) { display: none; }
   .upgrade { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; }
-  .upgrade-header small { display: block; margin: 2px 0 0; }
+  .upgrade > small { text-align: right; }
   .measure-card { margin-top: 22px; max-width: 340px; }
 }
 
 @media (max-width: 560px) {
+  :root { --board-height: clamp(420px, 60svh, 520px); }
   .page-header { padding: 18px 16px 10px; }
   .app-shell { padding: 0 16px; }
   .workbench, .utilities { max-width: 390px; }
   .current-calculation { font-size: 18px; }
-  .network-stage { height: 340px; }
   .prediction-row { gap: 9px; }
   .prediction-row strong { font-size: 14px; }
   .page-footer { padding: 24px 16px; }

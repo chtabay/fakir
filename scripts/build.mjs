@@ -6,6 +6,7 @@ import { Script } from 'node:vm';
 // Every source keeps its own scope; unsupported syntax fails the build.
 const root = new URL('../', import.meta.url);
 const modulePaths = [
+  'js/optimizer.js',
   'js/learning.js',
   'js/calculator.js',
   'js/game-state.js',
@@ -87,6 +88,7 @@ async function build() {
     `<script>\n${inlineScript}\n</script>`, 'Script principal');
   html = html.replace(/\b(href|src)=(['"])\.\/favicon\.svg\2/g, (_, attribute, quote) => `${attribute}=${quote}${faviconURI}${quote}`);
   html = html.replace(/\bhref=(['"])\.\/\1/g, 'href="#"');
+  html = html.replace('href="./reference/fakir-v2.html"', 'href="https://chtabay.github.io/fakir/reference/fakir-v2.html"');
 
   if ((html.match(/<script\b/gi) || []).length !== 1) throw new Error('Un script unique est attendu dans le fichier autonome.');
   for (const match of html.matchAll(/<(?:script|link|img)\b[^>]*\b(?:src|href)=(['"])([^'"]+)\1[^>]*>/gi)) {

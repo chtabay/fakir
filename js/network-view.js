@@ -1,32 +1,27 @@
-/** A canvas view of measured network state. This module never trains or calculates answers. */
-const MINT = [40, 104, 79];
-const AMBER = [156, 99, 27];
-const TEXT = [34, 34, 34];
-const MUTED = [135, 135, 127];
-const DOMAINS = { add: [0, 18], sub: [-9, 9], mul: [0, 81], div: [0, 9] };
-const SYMBOLS = { add: '+', sub: '−', mul: '×', div: '÷' };
+/** The board draws the learner's recorded ray. It never predicts or trains. */
+const INK = [34, 43, 38];
+const GREEN = [38, 109, 79];
+const AMBER = [182, 106, 32];
+const GREY = [146, 153, 146];
+const MONO = '"Courier New", Courier, monospace';
 const FRAME_MS = 1000 / 45;
-const AFTER_PHASE = 0.94;
-const FORWARD_WINDOWS = [[0.19, 0.39], [0.39, 0.56], [0.56, 0.68]];
-const biasAngle = value => -Math.PI / 2 + Math.atan(value * 8);
-const MONO = '"IBM Plex Mono", "SFMono-Regular", Consolas, monospace';
+const FALL_END = .28;
+const RETURN_START = .37;
+const RETURN_END = .85;
+const REPLAY_START = .87;
+const clamp = (v, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, v));
+const mix = (a, b, t) => a + (b - a) * t;
+const ease = t => t * t * (3 - 2 * t);
+const rgba = (rgb, a = 1) => `rgba(${rgb.join(',')},${clamp(a)})`;
+const finite = Number.isFinite;
 const number = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2, useGrouping: false });
-const outputNumber = new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: false });
-const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
-const rgba = (color, alpha) => `rgba(${color.join(',')},${clamp(alpha)})`;
-const mix = (a, b, p) => a + (b - a) * p;
-const finite = (value) => typeof value === 'number' && Number.isFinite(value);
-const format = (value, output = false) => {
-  if (!finite(value)) return '·';
-  if (Math.abs(value) >= 10000) return value.toExponential(1).replace('.', ',');
-  return (output ? outputNumber : number).format(value).replace('-', '−');
-};
+const format = v => finite(v) ? number.format(v).replace('-', '−') : '—';
 
 export class NetworkView {
   constructor(canvas) {
-    if (!canvas?.getContext) throw new TypeError('NetworkView needs a canvas element');
+    if (!canvas?.getContext) throw new TypeError('NetworkView needs a canvas');
     this.canvas = canvas;
-    this.ctx = canvas.getContext('2d', { alpha: true });
+    this.ctx = canvas.getContext('2d');
     if (!this.ctx) throw new Error('A 2D canvas context is unavailable');
     this.win = canvas.ownerDocument?.defaultView ?? globalThis;
     this.doc = canvas.ownerDocument;
@@ -34,24 +29,17 @@ export class NetworkView {
     this.width = 0;
     this.height = 0;
     this.dpr = 1;
+    this.visible = true;
     this.active = null;
     this.queued = null;
     this.lastSample = null;
-    this.lastReceivedNetwork = null;
-    this.lastReceivedType = null;
-    // Optional integration hook: emitted only for an example actually shown.
-    this.onSample = null;
     this.frame = null;
-    this.graph = null;
-    this.visible = true;
+    this.onSample = null;
     this.destroyed = false;
     this.media = this.win.matchMedia?.('(prefers-reduced-motion: reduce)');
     this.onResize = () => this.resize();
     this.onMotion = () => { if (this.motionReduced()) this.finishImmediately(); };
-    this.onVisibility = () => {
-      if (this.doc?.hidden) this.finishImmediately();
-      else this.resize();
-    };
+    this.onVisibility = () => this.doc?.hidden ? this.finishImmediately() : this.resize();
     this.media?.addEventListener?.('change', this.onMotion);
     this.doc?.addEventListener('visibilitychange', this.onVisibility);
     this.win.addEventListener?.('resize', this.onResize, { passive: true });
@@ -62,41 +50,31 @@ export class NetworkView {
     this.resize();
   }
 
-  /** An authoritative state change, for initial loading, selecting a task or settings. */
   setState(next = {}) {
     if (this.destroyed) return;
-    const changesExample = 'network' in next || 'prediction' in next || 'example' in next;
-    if (changesExample) {
+    if ('network' in next || 'prediction' in next || 'example' in next) {
       this.stop();
       this.lastSample = null;
     }
     this.state = { ...this.state, ...next };
-    if (changesExample) {
-      this.lastReceivedNetwork = this.state.network;
-      this.lastReceivedType = this.state.example?.type;
-    }
     if (this.motionReduced()) this.finishImmediately();
-    this.graph = null;
     this.draw();
     this.updateAccessibleLabel();
   }
 
-  /** Complete the current cycle; coalesce frequent training calls into one latest next cycle. */
   animate(sample, network) {
     if (this.destroyed || !sample || !network) return;
-    const beforeNetwork = this.lastReceivedType === sample.type ? this.lastReceivedNetwork : null;
-    const item = { sample, network, beforeNetwork };
-    this.lastReceivedNetwork = network;
-    this.lastReceivedType = sample.type;
+    const item = { sample, network };
     if (this.motionReduced() || !this.visible || this.doc?.hidden) {
       this.stop();
       this.commit(item);
       this.draw();
       this.notifySample(sample, 'after');
-      return;
-    }
-    if (this.active) this.queued = item;
-    else this.start(item);
+    } else if (this.active) {
+      // Keep the complete cycle currently shown. Its successor carries exact
+      // before/after snapshots, even when intervening launches are condensed.
+      this.queued = item;
+    } else this.start(item);
   }
 
   motionReduced() { return Boolean(this.state.reducedMotion || this.media?.matches); }
@@ -117,37 +95,31 @@ export class NetworkView {
     if (notify) this.notifySample(latest.sample, 'after');
   }
 
+  commit({ sample, network }) {
+    this.state.network = network;
+    this.state.prediction = { value: sample.after, normalizedValue: sample.trace?.finalX, trace: sample.trace };
+    this.state.example = { type: sample.type, a: sample.a, b: sample.b, target: sample.target };
+    this.lastSample = sample;
+    this.updateAccessibleLabel();
+  }
+
   notifySample(sample, phase) {
     this.updateAccessibleLabel(phase === 'before' ? sample.before : sample.after);
     if (typeof this.onSample === 'function') this.onSample(sample, phase);
   }
 
-  commit({ sample, network }) {
-    this.state.network = network;
-    this.state.prediction = {
-      value: sample.after,
-      activations: sample.activations,
-      normalizedValue: sample.activations?.at(-1)?.[0],
-    };
-    this.state.example = { type: sample.type, a: sample.a, b: sample.b, target: sample.target };
-    this.lastSample = sample;
-    this.graph = null;
-    this.updateAccessibleLabel();
-  }
-
   start(item) {
     this.commit(item);
     this.active = {
-      ...item, started: this.win.performance.now(), progress: 0, lastDraw: -Infinity,
-      afterNotified: false, duration: item.sample.trained <= 25 ? 1500 : 1100,
+      ...item, started: this.win.performance.now(), progress: 0,
+      lastDraw: -Infinity, afterNotified: false,
+      duration: item.sample.trained <= 25 ? 5600 : 4400,
     };
-    const startedCycle = this.active;
-    this.prepareGraph();
-    this.prepareSignals();
+    const started = this.active;
     this.draw(0);
     this.notifySample(item.sample, 'before');
-    if (this.active !== startedCycle || this.destroyed) return;
-    const tick = (now) => {
+    if (this.active !== started || this.destroyed) return;
+    const tick = now => {
       this.frame = null;
       if (!this.active || this.destroyed) return;
       const cycle = this.active;
@@ -159,14 +131,15 @@ export class NetworkView {
       }
       if (this.active !== cycle || this.destroyed) return;
       if (progress === 1) {
+        cycle.afterNotified = true;
+        this.notifySample(cycle.sample, 'after');
+        if (this.active !== cycle || this.destroyed) return;
         const next = this.queued;
         this.active = null;
         this.queued = null;
         this.draw();
         if (next) this.start(next);
-      } else {
-        this.frame = this.win.requestAnimationFrame(tick);
-      }
+      } else this.frame = this.win.requestAnimationFrame(tick);
     };
     this.frame = this.win.requestAnimationFrame(tick);
   }
@@ -183,350 +156,325 @@ export class NetworkView {
       this.dpr = dpr;
       this.canvas.width = Math.round(rect.width * dpr);
       this.canvas.height = Math.round(rect.height * dpr);
-      this.graph = null;
     }
-    this.draw(this.active?.progress);
+    this.draw();
   }
 
-  prepareGraph() {
+  geometry() {
     const network = this.state.network;
-    if (!network || this.graph?.network === network) return;
-    const sizes = network.sizes;
-    if (!Array.isArray(sizes) || sizes.length !== 4) return;
-    const left = Math.max(31, this.width * 0.075);
-    const right = this.width - Math.max(24, this.width * 0.065);
-    const railA = this.height * 0.1;
-    const railB = this.height * 0.235;
-    const example = this.state.example ?? {};
-    const a = finite(example.a) ? example.a : 0;
-    const b = finite(example.b) ? example.b : 0;
-    const inputMin = Math.min(0, a, b);
-    const inputMax = Math.max(9, a, b);
-    const inputX = value => mix(left, right, (value - inputMin) / (inputMax - inputMin));
-    const rows = [railA, this.height * 0.435, this.height * 0.645, this.height * 0.82];
-    const nodes = sizes.map((count, layer) => Array.from({ length: count }, (_, index) => {
-      const y = layer === 0 ? (index === 0 ? railA : railB) : rows[layer];
-      const x = layer === 0 ? inputX(index === 0 ? a : b)
-        : count === 1 ? this.width / 2 : mix(left, right, index / (count - 1));
-      return { x, y, layer, index };
-    }));
-    let maxWeight = 0;
-    const layers = network.weights.map((matrix, layer) => {
-      const edges = [];
-      matrix.forEach((row, destination) => row.forEach((weight, source) => {
-        if (!finite(weight) || !nodes[layer]?.[source] || !nodes[layer + 1]?.[destination]) return;
-        maxWeight = Math.max(maxWeight, Math.abs(weight));
-        edges.push({ layer, source, destination, weight, from: nodes[layer][source], to: nodes[layer + 1][destination] });
-      }));
-      return edges;
-    });
-    for (const layer of layers) for (const edge of layer) {
-      edge.strength = maxWeight ? Math.sqrt(Math.abs(edge.weight) / maxWeight) : 0;
-    }
-    this.graph = { network, nodes, layers, maxWeight, left, right, railA, railB, inputX };
-    if (this.active) this.prepareSignals();
+    if (!network?.geometry || !this.width || !this.height) return null;
+    const { rows, guides, width, height, initialFlight } = network.geometry;
+    const margin = this.width < 400 ? 23 : 28;
+    // One affine coordinate system for every row, both input rails and the
+    // output. No per-row rescaling and no trajectory pulled toward the target.
+    const worldWidth = width * 1.2;
+    const toX = x => margin + (x + worldWidth) / (2 * worldWidth) * (this.width - 2 * margin);
+    const top = 23;
+    const bottom = this.height - 36;
+    const unitY = (bottom - top) / (1 + initialFlight + rows * height);
+    const railA = top;
+    const railB = top + unitY;
+    const rowY = Array.from({ length: rows }, (_, r) => railB + (initialFlight + r * height) * unitY);
+    const positions = network.positions ?? Array.from({ length: guides }, (_, i) => -width + i * 2 * width / (guides - 1));
+    return { rows, guides, width, height, initialFlight, margin, toX, railA, railB, rowY, bottom, positions, unitY };
   }
 
-  prepareSignals() {
-    if (!this.active || !this.graph) return;
-    const sample = this.active.sample;
-    const activations = sample.beforeActivations ?? sample.activations ?? [];
-    const exactBefore = this.active.beforeNetwork?.trained === sample.trained - 1;
-    const beforeWeights = exactBefore ? this.active.beforeNetwork.weights : null;
-    const allGradients = sample.gradients?.weights?.flat(2).filter(finite) ?? [];
-    const gradientMax = Math.max(0, ...allGradients.map(Math.abs));
-    const gradientLevel = Math.min(1, Math.sqrt(gradientMax) * 3);
-    this.active.forward = this.graph.layers.map((edges, layer) => {
-      const selected = [];
-      for (let destination = 0; destination < this.graph.nodes[layer + 1].length; destination++) {
-        const incoming = edges.filter(edge => edge.destination === destination).map(edge => ({
-          ...edge,
-          signalWeight: beforeWeights?.[layer]?.[edge.destination]?.[edge.source] ?? edge.weight,
-          // A pre-update contribution is known only with the matching snapshot.
-          // For coalesced batches, display the actual source activation instead
-          // of manufacturing a contribution from mismatched parameter states.
-          signal: beforeWeights
-            ? Math.abs(beforeWeights[layer][edge.destination][edge.source] * (activations[layer]?.[edge.source] ?? 0))
-            : Math.abs(activations[layer]?.[edge.source] ?? 0),
-        })).filter(edge => edge.signal > 1e-8).sort((a, b) => b.signal - a.signal);
-        selected.push(...incoming.slice(0, layer === 2 ? 6 : 2));
-      }
-      return selected;
-    });
-    this.active.backward = this.graph.layers.map((edges) => edges.map(edge => {
-      const gradient = sample.gradients?.weights?.[edge.layer]?.[edge.destination]?.[edge.source] ?? 0;
-      return { ...edge, signal: gradientMax ? Math.sqrt(Math.abs(gradient) / gradientMax) * gradientLevel : 0 };
-    }).filter(edge => edge.signal > 0.005).sort((a, b) => b.signal - a.signal).slice(0, 24));
-    const deltas = sample.gradients?.deltas?.flat().filter(finite) ?? [];
-    this.active.maxDelta = Math.max(0, ...deltas.map(Math.abs));
-    this.active.gradientLevel = gradientLevel;
+  path(trace, g) {
+    if (!trace?.input || trace.rows?.length !== g.rows || !finite(trace.finalX)) return null;
+    return [
+      { x: g.toX(trace.input.a), y: g.railA },
+      { x: g.toX(trace.input.b), y: g.railB },
+      ...trace.rows.map((row, r) => ({ x: g.toX(row.x), y: g.rowY[r] })),
+      { x: g.toX(trace.finalX), y: g.bottom },
+    ];
   }
 
-  draw(progress = this.active?.progress) {
-    if (!this.ctx || !this.width || !this.height || !this.visible || this.destroyed) return;
+  draw(progress = this.active?.progress ?? 1) {
+    if (!this.ctx || !this.visible || this.destroyed || !this.width || !this.height) return;
     const ctx = this.ctx;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.clearRect(0, 0, this.width, this.height);
-    this.prepareGraph();
-    if (!this.graph) return;
+    const g = this.geometry();
+    if (!g) return;
     const active = this.active;
-    const after = !active || progress >= AFTER_PHASE;
-    const prediction = active && !after
-      ? { value: active.sample.before, activations: active.sample.beforeActivations }
-      : this.state.prediction;
-    const activations = prediction?.activations ?? [];
-    const beforeWeights = active && progress < 0.74 && active.beforeNetwork?.trained === active.sample.trained - 1
-      ? active.beforeNetwork.weights : null;
+    const sample = active?.sample ?? this.lastSample;
+    const afterTrace = this.state.prediction?.trace;
+    const beforeTrace = active?.sample.beforeTrace ?? afterTrace;
+    const beforePath = this.path(beforeTrace, g);
+    const afterPath = this.path(afterTrace, g);
+    if (!beforePath || !afterPath) return;
+    const replay = active && progress >= REPLAY_START;
+    const trace = replay || !active ? afterTrace : beforeTrace;
+    const path = replay || !active ? afterPath : beforePath;
+    const fall = active ? clamp(progress / FALL_END) : 1;
+    const replayProgress = replay ? clamp((progress - REPLAY_START) / (1 - REPLAY_START)) : 0;
+    const returning = active && progress >= RETURN_START && progress < RETURN_END;
+    const returnPosition = active ? clamp((progress - RETURN_START) / (RETURN_END - RETURN_START)) * (g.rows + 1) : g.rows + 1;
     ctx.lineCap = 'round';
-    for (const edges of this.graph.layers) for (const edge of edges) {
-      const weight = beforeWeights?.[edge.layer]?.[edge.destination]?.[edge.source] ?? edge.weight;
-      const strength = this.graph.maxWeight ? clamp(Math.sqrt(Math.abs(weight) / this.graph.maxWeight)) : 0;
-      if (strength < 1e-6) continue;
-      ctx.strokeStyle = rgba(weight >= 0 ? MINT : AMBER, 0.045 + strength * 0.19);
-      ctx.lineWidth = 0.45 + strength * 0.45;
-      ctx.beginPath();
-      ctx.moveTo(edge.from.x, edge.from.y);
-      ctx.lineTo(edge.to.x, edge.to.y);
-      ctx.stroke();
-    }
-    this.drawRails(progress);
-    if (active) this.drawFlow(progress);
-    for (const layer of this.graph.nodes) for (const node of layer) {
-      if (node.layer === 0) continue;
-      const activation = activations[node.layer]?.[node.index] ?? 0;
-      let pulse = 0;
-      let correction = 0;
-      if (active) {
-        const arrival = FORWARD_WINDOWS[node.layer - 1][1];
-        pulse = Math.max(0, 1 - Math.abs(progress - arrival) / 0.075) * Math.min(1, Math.abs(activation));
-        const returnArrival = 0.74 + (3 - node.layer) / 3 * 0.2;
-        const delta = active.sample.gradients?.deltas?.[node.layer - 1]?.[node.index] ?? 0;
-        correction = Math.max(0, 1 - Math.abs(progress - returnArrival) / 0.085)
-          * (active.maxDelta ? Math.sqrt(Math.abs(delta) / active.maxDelta) : 0) * active.gradientLevel;
+    ctx.lineJoin = 'round';
+
+    // Quiet context: just the path actually computed for this pair.
+    this.strokePath(path, GREY, .23, 1, [2, 4]);
+    this.drawRails(trace, g);
+    if (active) {
+      if (replay) {
+        this.strokePartial(afterPath, replayProgress, GREEN, .75, 1.7);
+      } else {
+        this.strokePartial(beforePath, fall, GREEN, .8, 1.7);
       }
-      const label = node.layer === 3 ? format(prediction?.value, true) : null;
-      this.drawNode(node, activation, label, pulse, correction, progress);
+    } else this.strokePath(afterPath, GREEN, .42, 1.2);
+
+    const update = sample?.updateGradients?.angles ?? sample?.gradients?.angles ?? [];
+    const gradientMax = Math.max(1e-12, ...update.flat().filter(finite).map(Math.abs));
+    for (let row = 0; row < g.rows; row++) {
+      const local = trace.rows[row];
+      const influence = new Map();
+      local.indices.forEach((index, i) => influence.set(index, (influence.get(index) ?? 0) + local.weights[i]));
+      const returnIndex = g.rows - 1 - row;
+      // On each upward leg the pulse first arrives, then the dials turn.
+      const correction = active ? clamp((returnPosition - returnIndex - .60) / .38) : 1;
+      const rowReached = active && !replay && progress < RETURN_START
+        ? clamp((fall * (path.length - 1) - (row + 2) + .3) / .3) : 1;
+      const currentRow = returning && Math.floor(returnPosition) === returnIndex;
+      for (let pin = 0; pin < g.guides; pin++) {
+        const newAngle = this.state.network.angles[row][pin];
+        const oldAngle = active?.sample.beforeAngles?.[row]?.[pin] ?? newAngle;
+        const angle = mix(oldAngle, newAngle, ease(correction));
+        const weight = (influence.get(pin) ?? 0) * rowReached;
+        const grad = Math.sqrt(Math.abs(update[row]?.[pin] ?? 0) / gradientMax);
+        this.drawDial(g.toX(g.positions[pin]), g.rowY[row], angle, {
+          weight, oldAngle, correction,
+          changed: Math.abs(newAngle - oldAngle) > 1e-8,
+          returning: currentRow,
+          gradient: grad,
+        });
+      }
+      // The effective local deflector is derived from these four guides.
+      const x = g.toX(local.x), y = g.rowY[row];
+      if (x >= g.margin - 6 && x <= this.width - g.margin + 6) {
+        ctx.strokeStyle = rgba(GREEN, .42 + .3 * rowReached);
+        ctx.lineWidth = 1.6;
+        const half = 4.5;
+        ctx.beginPath();
+        ctx.moveTo(x - Math.cos(local.angle) * half, y + Math.sin(local.angle) * half);
+        ctx.lineTo(x + Math.cos(local.angle) * half, y - Math.sin(local.angle) * half);
+        ctx.stroke();
+      }
     }
-    this.drawAxis(prediction?.value, after ? this.lastSample : null);
-    if (active && after && !active.afterNotified) {
-      active.afterNotified = true;
-      this.notifySample(active.sample, 'after');
+
+    const value = active && !replay ? sample.before : this.state.prediction.value;
+    this.drawOutput(g, value, sample, !active || progress >= FALL_END);
+    if (returning) {
+      this.drawReturn(beforePath, returnPosition, g);
+    } else if (active && progress < RETURN_START) {
+      const point = this.pointAlong(beforePath, fall);
+      this.ball(point.x, point.y, 4.3, INK);
+    } else if (replay) {
+      const point = this.pointAlong(afterPath, replayProgress);
+      this.ball(point.x, point.y, 4.3, GREEN);
+    } else if (!active) {
+      const point = this.state.network.trained ? afterPath.at(-1) : afterPath[0];
+      this.ball(point.x, point.y, 4.3, INK);
     }
+    if (active && sample.revisionSize > 1) {
+      ctx.fillStyle = rgba(GREY, 1);
+      ctx.font = `11px ${MONO}`;
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`↻ ${sample.revisionSize}`, this.width - 8, (g.railA + g.railB) / 2);
+    }
+    this.drawOverflow(path, g);
   }
 
-  drawRails(progress) {
+  drawRails(trace, g) {
     const ctx = this.ctx;
-    const { left, right, railA, railB, inputX, nodes } = this.graph;
-    const [pointA, pointB] = nodes[0];
-    // The two positions encode A and B. The connecting segment makes their
-    // difference visible; it is not a claim of classical mechanical inference.
-    ctx.strokeStyle = rgba(MUTED, 0.38);
-    ctx.lineWidth = 0.8;
-    ctx.setLineDash([2, 3]);
-    ctx.beginPath(); ctx.moveTo(pointA.x, railA); ctx.lineTo(pointA.x, railB); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.strokeStyle = rgba(MINT, 0.86);
-    ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(pointA.x, railA); ctx.lineTo(pointB.x, railB); ctx.stroke();
-    const angle = Math.atan2(railB - railA, pointB.x - pointA.x);
-    ctx.fillStyle = rgba(MINT, 0.9);
-    ctx.beginPath();
-    ctx.moveTo(pointB.x, railB);
-    ctx.lineTo(pointB.x - 7 * Math.cos(angle - 0.4), railB - 7 * Math.sin(angle - 0.4));
-    ctx.lineTo(pointB.x - 7 * Math.cos(angle + 0.4), railB - 7 * Math.sin(angle + 0.4));
-    ctx.closePath(); ctx.fill();
-    [railA, railB].forEach((y, index) => {
-      ctx.strokeStyle = rgba(TEXT, 0.38);
-      ctx.lineWidth = 0.8;
-      ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(right, y); ctx.stroke();
-      ctx.font = `400 9px ${MONO}`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    [g.railA, g.railB].forEach((y, index) => {
+      const x = g.toX(index ? trace.input.b : trace.input.a);
+      ctx.strokeStyle = rgba(GREY, .58);
+      ctx.lineWidth = .8;
+      ctx.beginPath(); ctx.moveTo(g.toX(-1), y); ctx.lineTo(g.toX(1), y); ctx.stroke();
+      ctx.font = `10px ${MONO}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
       for (let digit = 0; digit <= 9; digit++) {
-        const x = inputX(digit);
-        ctx.beginPath(); ctx.moveTo(x, y - 3); ctx.lineTo(x, y + 3); ctx.stroke();
-        ctx.fillStyle = rgba(TEXT, 0.72);
-        ctx.fillText(String(digit), x, y + 8);
+        const tick = g.toX(digit / 4.5 - 1);
+        ctx.beginPath(); ctx.moveTo(tick, y - 3); ctx.lineTo(tick, y + 3); ctx.stroke();
+        ctx.fillStyle = rgba(INK, .65);
+        ctx.fillText(String(digit), tick, y - 6);
       }
-      ctx.font = `600 11px ${MONO}`;
-      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-      ctx.fillStyle = rgba(TEXT, 0.9);
-      ctx.fillText(index === 0 ? 'A' : 'B', 9, y);
-      const point = nodes[0][index];
-      ctx.fillStyle = '#fff'; ctx.strokeStyle = rgba(MINT, 1); ctx.lineWidth = 1.4;
-      ctx.beginPath(); ctx.arc(point.x, point.y, 5.2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.font = `bold 11px ${MONO}`;
+      ctx.fillStyle = rgba(INK, .85);
+      ctx.fillText(index ? 'B' : 'A', g.toX(-1) - 17, y);
+      ctx.fillStyle = '#fff';
+      ctx.strokeStyle = rgba(GREEN, 1);
+      ctx.lineWidth = 1.3;
+      ctx.beginPath(); ctx.arc(x, y, 4.2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     });
-    if (this.active && progress <= 0.19) {
-      const t = clamp(progress / 0.19);
-      this.drawBall(mix(pointA.x, pointB.x, t), mix(railA, railB, t), 4.2, TEXT, 1);
+    this.arrow({ x: g.toX(trace.input.a), y: g.railA }, { x: g.toX(trace.input.b), y: g.railB }, GREEN, .8, .75, 4.3);
+  }
+
+  drawDial(x, y, angle, state) {
+    const ctx = this.ctx;
+    const activity = Math.sqrt(clamp(state.weight));
+    const radius = (this.width < 400 ? 3.5 : 4.4) + activity * 2.5;
+    const pointer = -Math.PI / 2 + angle;
+    if (activity > .002) {
+      ctx.fillStyle = rgba(GREEN, .035 + activity * .11);
+      ctx.beginPath(); ctx.arc(x, y, radius + 3.5, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = rgba(activity ? GREEN : GREY, activity ? .35 + activity * .6 : .40);
+    ctx.lineWidth = activity > .1 ? 1.2 : .8;
+    ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    if (state.changed && state.correction > 0 && this.active) {
+      const old = -Math.PI / 2 + state.oldAngle;
+      ctx.strokeStyle = rgba(GREY, .45);
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x, y);
+      ctx.lineTo(x + Math.cos(old) * radius * .8, y + Math.sin(old) * radius * .8); ctx.stroke();
+      ctx.strokeStyle = rgba(AMBER, state.returning ? 1 : .55);
+      ctx.lineWidth = state.returning ? 2.5 : 1.5;
+      ctx.beginPath(); ctx.arc(x, y, radius + 2.8, old, pointer, pointer < old); ctx.stroke();
+    }
+    ctx.strokeStyle = rgba(activity ? INK : GREY, activity ? .95 : .7);
+    ctx.lineWidth = activity ? 1.5 : 1;
+    ctx.beginPath(); ctx.moveTo(x, y);
+    ctx.lineTo(x + Math.cos(pointer) * radius * .82, y + Math.sin(pointer) * radius * .82); ctx.stroke();
+    if (state.returning && state.gradient > .002) {
+      ctx.strokeStyle = rgba(AMBER, .25 + state.gradient * .65);
+      ctx.lineWidth = 1.3;
+      ctx.beginPath(); ctx.arc(x, y, radius + 5, 0, Math.PI * 2); ctx.stroke();
     }
   }
 
-  drawBall(x, y, radius, color, opacity = 1) {
+  drawOutput(g, value, sample, showError) {
+    const ctx = this.ctx;
+    const { offset, scale } = this.state.network;
+    const target = this.state.example.target;
+    const x = g.toX((value - offset) / scale);
+    const targetX = g.toX((target - offset) / scale);
+    ctx.strokeStyle = rgba(GREY, .7);
+    ctx.lineWidth = .8;
+    ctx.beginPath(); ctx.moveTo(g.toX(-g.width), g.bottom); ctx.lineTo(g.toX(g.width), g.bottom); ctx.stroke();
+    ctx.font = `10px ${MONO}`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    for (const normalized of [-1, -.5, 0, .5, 1]) {
+      const tick = g.toX(normalized);
+      ctx.beginPath(); ctx.moveTo(tick, g.bottom - 3); ctx.lineTo(tick, g.bottom + 3); ctx.stroke();
+      ctx.fillStyle = rgba(INK, .7);
+      ctx.fillText(format(offset + normalized * scale), tick, g.bottom + 15);
+    }
+    // The teacher is a separate marker. It does not enter path() or geometry().
+    ctx.strokeStyle = rgba(GREEN, .9);
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(targetX, g.bottom - 9); ctx.lineTo(targetX, g.bottom + 6); ctx.stroke();
+    if (showError && finite(x)) {
+      ctx.strokeStyle = rgba(AMBER, .8);
+      ctx.lineWidth = 1.8;
+      ctx.beginPath(); ctx.moveTo(x, g.bottom + 9); ctx.lineTo(targetX, g.bottom + 9); ctx.stroke();
+      if (Math.abs(x - targetX) > 4) {
+        this.arrow({ x, y: g.bottom + 9 }, { x: targetX, y: g.bottom + 9 }, AMBER, .9, 1, 3.5);
+      }
+      if (this.active && this.active.progress < REPLAY_START) this.ball(x, g.bottom, 2.6, INK, .6);
+    }
+  }
+
+  drawReturn(path, position, g) {
+    const ctx = this.ctx;
+    const leg = Math.floor(position);
+    const fraction = position - leg;
+    // Stop briefly at each row, giving its rotation a separate, visible beat.
+    const travel = ease(clamp(fraction / .60));
+    const fromIndex = path.length - 1 - leg;
+    const toIndex = Math.max(1, fromIndex - 1);
+    const from = path[fromIndex], to = path[toIndex];
+    if (!from || !to) return;
+    const current = { x: mix(from.x, to.x, travel), y: mix(from.y, to.y, travel) };
+    const visited = path.slice(fromIndex).reverse();
+    visited.push(current);
+    this.strokePath(visited, AMBER, .67, 2.1);
+    this.arrow(from, to, AMBER, 1, travel, 7);
+    this.ball(current.x, current.y, 4, AMBER);
+    // A second directional cue stays vertical; it is a progress indicator,
+    // separate from the ray, which still follows its exact recorded path.
+    const cueX = 9;
+    ctx.strokeStyle = rgba(AMBER, .18);
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cueX, g.bottom); ctx.lineTo(cueX, g.railB); ctx.stroke();
+    ctx.strokeStyle = rgba(AMBER, .9);
+    ctx.beginPath(); ctx.moveTo(cueX, g.bottom); ctx.lineTo(cueX, current.y); ctx.stroke();
+    this.arrow({ x: cueX, y: g.bottom }, { x: cueX, y: current.y - 1 }, AMBER, 1, 1, 5);
+  }
+
+  pointAlong(path, fraction) {
+    const scaled = clamp(fraction) * (path.length - 1);
+    const index = Math.min(path.length - 2, Math.floor(scaled));
+    const t = scaled - index;
+    return { x: mix(path[index].x, path[index + 1].x, t), y: mix(path[index].y, path[index + 1].y, t) };
+  }
+
+  strokePartial(path, fraction, color, opacity, width) {
+    const stop = clamp(fraction) * (path.length - 1);
+    const count = Math.floor(stop);
+    const points = path.slice(0, count + 1);
+    if (count < path.length - 1) points.push(this.pointAlong(path, fraction));
+    this.strokePath(points, color, opacity, width);
+  }
+
+  strokePath(path, color, opacity, width, dash = []) {
+    if (path.length < 2) return;
+    const ctx = this.ctx;
+    ctx.strokeStyle = rgba(color, opacity); ctx.lineWidth = width; ctx.setLineDash(dash);
+    ctx.beginPath(); ctx.moveTo(path[0].x, path[0].y);
+    for (let i = 1; i < path.length; i++) ctx.lineTo(path[i].x, path[i].y);
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+
+  arrow(from, to, color, opacity, progress = 1, size = 5) {
+    if (Math.hypot(to.x - from.x, to.y - from.y) < .1) return;
+    const ctx = this.ctx;
+    const x = mix(from.x, to.x, progress), y = mix(from.y, to.y, progress);
+    const a = Math.atan2(to.y - from.y, to.x - from.x);
+    ctx.fillStyle = rgba(color, opacity);
+    ctx.beginPath(); ctx.moveTo(x, y);
+    ctx.lineTo(x - size * Math.cos(a - .52), y - size * Math.sin(a - .52));
+    ctx.lineTo(x - size * Math.cos(a + .52), y - size * Math.sin(a + .52));
+    ctx.closePath(); ctx.fill();
+  }
+
+  ball(x, y, radius, color, opacity = 1) {
+    if (!finite(x) || !finite(y)) return;
     const ctx = this.ctx;
     ctx.fillStyle = rgba(color, opacity);
     ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = `rgba(255,255,255,${opacity * 0.8})`;
-    ctx.beginPath(); ctx.arc(x - radius * 0.27, y - radius * 0.32, radius * 0.24, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = `rgba(255,255,255,${opacity * .82})`;
+    ctx.beginPath(); ctx.arc(x - radius * .24, y - radius * .29, radius * .22, 0, Math.PI * 2); ctx.fill();
   }
 
-  drawNode(node, activation, label, pulse, correction, progress) {
+  drawOverflow(path, g) {
     const ctx = this.ctx;
-    const major = node.layer === 3;
-    const radius = major ? 12 : Math.max(7, Math.min(10, this.width / 48));
-    const activity = clamp(Math.abs(activation));
-    const color = activation < 0 ? AMBER : MINT;
-    const bias = this.state.network.biases?.[node.layer - 1]?.[node.index] ?? 0;
-    const oldBias = this.active?.beforeNetwork?.biases?.[node.layer - 1]?.[node.index];
-    const newAngle = biasAngle(bias);
-    const oldAngle = finite(oldBias) ? biasAngle(oldBias) : newAngle;
-    const correctionProgress = this.active ? clamp((progress - 0.74) / 0.2) : 1;
-    const angle = mix(oldAngle, newAngle, correctionProgress);
-    ctx.fillStyle = '#fff';
-    ctx.strokeStyle = rgba(TEXT, 0.6);
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
-    ctx.fill(); ctx.stroke();
-    ctx.fillStyle = rgba(color, 0.04 + activity * 0.14 + pulse * 0.08);
-    ctx.beginPath(); ctx.arc(node.x, node.y, radius - 1, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = rgba(color, 0.55 + pulse * 0.3);
-    ctx.lineWidth = 1.6;
-    ctx.beginPath(); ctx.arc(node.x, node.y, radius + 2, -Math.PI / 2, -Math.PI / 2 + activity * Math.PI * 2); ctx.stroke();
-    // Every dial has the same fixed, monotonic scale: atan(8 × actual bias).
-    // The ghost pointer and correction arc use a real earlier snapshot only.
-    if (finite(oldBias) && Math.abs(newAngle - oldAngle) > 0.0001 && correctionProgress > 0) {
-      ctx.strokeStyle = rgba(MUTED, 0.6); ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(node.x, node.y);
-      ctx.lineTo(node.x + Math.cos(oldAngle) * radius * 0.75, node.y + Math.sin(oldAngle) * radius * 0.75); ctx.stroke();
-      ctx.strokeStyle = rgba(AMBER, 0.9); ctx.lineWidth = 1.8;
-      ctx.beginPath(); ctx.arc(node.x, node.y, radius + 4, oldAngle, angle, angle < oldAngle); ctx.stroke();
-      this.drawBall(node.x + Math.cos(angle) * (radius + 4), node.y + Math.sin(angle) * (radius + 4), 1.5, AMBER, 0.9);
+    for (const point of path) {
+      if (point.x >= 1 && point.x <= this.width - 1) continue;
+      const x = point.x < 1 ? 3 : this.width - 3;
+      ctx.fillStyle = rgba(AMBER, .9);
+      ctx.beginPath(); ctx.moveTo(x, point.y);
+      ctx.lineTo(x + (point.x < 1 ? 5 : -5), point.y - 3);
+      ctx.lineTo(x + (point.x < 1 ? 5 : -5), point.y + 3);
+      ctx.closePath(); ctx.fill();
     }
-    ctx.strokeStyle = rgba(TEXT, 0.95); ctx.lineWidth = 1.8;
-    ctx.beginPath(); ctx.moveTo(node.x, node.y);
-    ctx.lineTo(node.x + Math.cos(angle) * radius * 0.75, node.y + Math.sin(angle) * radius * 0.75); ctx.stroke();
-    ctx.fillStyle = rgba(TEXT, 0.95);
-    ctx.beginPath(); ctx.arc(node.x, node.y, 1.7, 0, Math.PI * 2); ctx.fill();
-    if (pulse > 0.02) this.drawBall(node.x, node.y - radius - 4 - pulse * 5, 1.6 + activity * 1.6, color, 0.75);
-    if (correction > 0.01) {
-      ctx.strokeStyle = rgba(AMBER, correction * 0.9); ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.arc(node.x, node.y, radius + 5 + correction * 3, 0, Math.PI * 2); ctx.stroke();
-    }
-    if (major) {
-      ctx.fillStyle = rgba(TEXT, 0.98); ctx.font = `400 12px ${MONO}`;
-      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-      ctx.fillText(`≈ ${label}`, node.x + 23, node.y);
-    }
-  }
-
-  drawFlow(progress) {
-    const active = this.active;
-    if (!active) return;
-    const backwards = progress >= 0.74 && progress <= 0.94;
-    const forwards = progress >= 0.19 && progress <= 0.68;
-    if (!backwards && !forwards) return;
-    const global = backwards ? (progress - 0.74) / 0.2 * 3 : 0;
-    const segment = backwards ? Math.min(2, Math.floor(global))
-      : Math.max(0, FORWARD_WINDOWS.findIndex(([start, end]) => progress >= start && progress <= end));
-    const layer = backwards ? 2 - segment : segment;
-    const [start, end] = FORWARD_WINDOWS[layer];
-    const position = backwards ? clamp(global - segment) : clamp((progress - start) / (end - start));
-    const edges = (backwards ? active.backward : active.forward)?.[layer] ?? [];
-    for (const edge of edges) {
-      const strength = backwards ? edge.signal : Math.min(1, Math.sqrt(edge.signal) * 2.3);
-      if (strength < 0.01) continue;
-      const t = backwards ? 1 - position : position;
-      const x = mix(edge.from.x, edge.to.x, t);
-      const y = mix(edge.from.y, edge.to.y, t);
-      const color = backwards ? AMBER : (edge.signalWeight ?? edge.weight) >= 0 ? MINT : AMBER;
-      const tail = clamp(t + (backwards ? 0.11 : -0.11));
-      this.ctx.strokeStyle = rgba(color, strength * 0.55);
-      this.ctx.lineWidth = 0.7 + strength;
-      this.ctx.beginPath();
-      this.ctx.moveTo(mix(edge.from.x, edge.to.x, tail), mix(edge.from.y, edge.to.y, tail));
-      this.ctx.lineTo(x, y);
-      this.ctx.stroke();
-      this.drawBall(x, y, 1.2 + strength * 1.6, color, 0.25 + strength * 0.7);
-    }
-  }
-
-  drawAxis(value, sample) {
-    if (!finite(value)) return;
-    const ctx = this.ctx;
-    const example = this.state.example ?? {};
-    const target = example.target;
-    const domain = DOMAINS[example.type] ?? [0, 18];
-    // Domain bounds give context; real outlying predictions extend the axis.
-    const values = [value, target, sample?.before, sample?.after].filter(finite);
-    let minimum = Math.min(domain[0], ...values);
-    let maximum = Math.max(domain[1], ...values);
-    const padding = (maximum - minimum || 1) * 0.04;
-    if (minimum < domain[0]) minimum -= padding;
-    if (maximum > domain[1]) maximum += padding;
-    const left = Math.max(30, this.width * 0.16);
-    const right = this.width - left;
-    const y = this.height - 24;
-    const xOf = n => mix(left, right, (n - minimum) / (maximum - minimum || 1));
-    const px = xOf(value);
-    const output = this.graph.nodes.at(-1)[0];
-    ctx.strokeStyle = rgba(MINT, 0.1);
-    ctx.lineWidth = 0.7;
-    ctx.beginPath();
-    ctx.moveTo(output.x, output.y + 15);
-    ctx.bezierCurveTo(output.x, y - 12, px, y - 14, px, y);
-    ctx.stroke();
-    ctx.strokeStyle = rgba(MUTED, 0.3);
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(left, y);
-    ctx.lineTo(right, y);
-    ctx.stroke();
-    for (const x of [left, right]) {
-      ctx.beginPath(); ctx.moveTo(x, y - 3); ctx.lineTo(x, y + 3); ctx.stroke();
-    }
-    ctx.font = `400 9px ${MONO}`;
-    ctx.textBaseline = 'top';
-    ctx.fillStyle = rgba(MUTED, 0.75);
-    ctx.textAlign = 'left'; ctx.fillText(format(minimum), left, y + 9);
-    ctx.textAlign = 'right'; ctx.fillText(format(maximum), right, y + 9);
-    if (sample && finite(sample.before) && Math.abs(xOf(sample.before) - px) > 2) {
-      const beforeX = xOf(sample.before);
-      ctx.strokeStyle = rgba(MINT, 0.35);
-      ctx.lineWidth = 0.8;
-      ctx.setLineDash([2, 3]);
-      ctx.beginPath(); ctx.moveTo(beforeX, y - 5); ctx.lineTo(px, y - 5); ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.strokeStyle = rgba(MUTED, 0.7);
-      ctx.beginPath(); ctx.arc(beforeX, y, 3, 0, Math.PI * 2); ctx.stroke();
-    }
-    if (finite(target)) {
-      const tx = xOf(target);
-      ctx.strokeStyle = rgba(AMBER, 0.38);
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(tx, y); ctx.lineTo(px, y); ctx.stroke();
-      ctx.strokeStyle = rgba(MINT, 0.9);
-      ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(tx, y - 6); ctx.lineTo(tx, y + 6); ctx.stroke();
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'bottom';
-      ctx.fillStyle = rgba(MINT, 0.92);
-      const labelX = clamp(tx, left + 18, right - 18);
-      ctx.fillText(`cible ${format(target)}`, labelX, y - 10);
-    }
-    ctx.fillStyle = rgba(TEXT, 1);
-    ctx.beginPath(); ctx.arc(px, y, 3.2, 0, Math.PI * 2); ctx.fill();
   }
 
   updateAccessibleLabel(value = this.state.prediction?.value) {
     const example = this.state.example;
-    if (!example || !finite(value)) return;
-    this.canvas.setAttribute('aria-label',
-      `Entrée A ${format(example.a)}, entrée B ${format(example.b)}, opération ${SYMBOLS[example.type] ?? ''}. `
-      + `Proposition ${format(value, true)}${finite(example.target) ? `, cible ${format(example.target)}` : ''}. `
-      + 'Deux rails gradués représentent les entrées. Les potards montrent les biais appris et les impulsions les signaux réels.');
+    if (!example) return;
+    const symbols = { add: '+', sub: '−', mul: '×', div: '÷' };
+    this.canvas.setAttribute('aria-label', `${example.a} ${symbols[example.type] ?? ''} ${example.b}. Réponse ${format(value)}. Cible ${format(example.target)}. Plateau à huit rangées de potards.`);
   }
 
   destroy() {
+    if (this.destroyed) return;
     this.stop();
     this.destroyed = true;
     this.observer?.disconnect();

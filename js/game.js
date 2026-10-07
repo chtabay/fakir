@@ -1,9 +1,10 @@
-import { GameSession, CHAPTERS, FAMILIES, UPGRADES, AUTO_RATES } from './game-state.js';
+import { GameSession, FAMILIES, UPGRADES, AUTO_RATES } from './game-state.js';
 import { NetworkView } from './network-view.js';
 import { evaluateExpression } from './calculator.js';
 
 const $=id=>document.getElementById(id);
-const SAVE_KEY='fakir-v2-progress';
+const SAVE_KEY='fakir-v3-progress';
+const PREVIOUS_SAVE_KEY='fakir-v2-progress';
 const integer=new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0});
 const decimal=new Intl.NumberFormat('fr-FR',{minimumFractionDigits:3,maximumFractionDigits:3});
 const percent=value=>`${Math.round(value*100)} %`;
@@ -12,22 +13,25 @@ let game=new GameSession();
 let view='machine',lastSample=null,preview={a:2,b:3},lastMeasured=0,lastUi=0,autoCredit=0,dirty=false,toastTimeout,audioContext;
 let introAnimating=false,inputControlsKey='',displayed={a:2,b:3,type:'add'};
 let storageFailed=false,reduceBySystem=matchMedia('(prefers-reduced-motion: reduce)').matches;
-try { const saved=localStorage.getItem(SAVE_KEY);if(saved)game.restore(saved); }
+try {
+  const saved=localStorage.getItem(SAVE_KEY);
+  if(saved)game.restore(saved);
+  $('previous-game').hidden=!localStorage.getItem(PREVIOUS_SAVE_KEY);
+}
 catch(error) { storageFailed=true; console.warn('Fakir : progression non chargée.',error.message); }
 const networkView=new NetworkView($('network'));
 networkView.onSample=(sample,phase)=>{
   displayed={a:sample.a,b:sample.b,type:sample.type};
   updateReadout(phase==='before'?sample.before:sample.after,sample.target);
   $('current-calculation').textContent=sample.a+' '+FAMILIES[sample.type].symbol+' '+sample.b;
-  $('last-correction').textContent=phase==='after'?fmt(sample.before)+' → '+fmt(sample.after):'';
   renderInputControls();
   if(phase==='after'){const wasIntro=introAnimating&&game.data.phase===0;introAnimating=false;$('train').disabled=false;if(wasIntro){measure();render();}}
 };
 
 function toast(message) { $('toast').textContent=message;$('toast').classList.add('visible');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>$('toast').classList.remove('visible'),4200); }
 function save() {
-  try { localStorage.setItem(SAVE_KEY,JSON.stringify(game.exportState()));dirty=false;storageFailed=false;$('save-status').textContent='Progression sauvegardée ici';$('save-status').classList.remove('failed'); }
-  catch { storageFailed=true;$('save-status').textContent='Sauvegarde indisponible · exporte ta progression';$('save-status').classList.add('failed'); }
+  try { localStorage.setItem(SAVE_KEY,JSON.stringify(game.exportState()));dirty=false;storageFailed=false;$('save-status').textContent='Enregistré';$('save-status').classList.remove('failed'); }
+  catch { storageFailed=true;$('save-status').textContent='Enregistrement indisponible';$('save-status').classList.add('failed'); }
 }
 function sound(success=false) {
   if(!game.data.preferences.sound)return;
@@ -72,8 +76,8 @@ function chooseInputs() {
 
 function updateReadout(prediction,target) { $('prediction').textContent=fmt(prediction);$('target').textContent=Number.isInteger(target)?integer.format(target):fmt(target);$('error').textContent=fmt(Math.abs(prediction-target)); }
 function changeView(next) {
-  if(next==='repertoire'&&game.data.phase<1){toast('Le répertoire s’ouvre après le premier déclic.');return;}
-  if(next==='calculator'&&game.data.phase<3){toast('La calculatrice s’ouvre quand la table d’addition est prête.');return;}
+  if(next==='repertoire'&&game.data.phase<1)return;
+  if(next==='calculator'&&game.data.phase<3)return;
   view=next;
   document.querySelectorAll('.view-tab').forEach(button=>{const selected=button.dataset.view===next;button.classList.toggle('selected',selected);button.setAttribute('aria-selected',String(selected));});
   for(const name of ['machine','repertoire','calculator'])$(name+'-view').hidden=name!==next;
@@ -82,10 +86,10 @@ function changeView(next) {
   if(next==='calculator')renderCalculatorKeys();
 }
 function train(count,manual) {
-  if(manual&&introAnimating&&game.data.phase===0)return;
+  if(manual&&introAnimating)return;
   const sample=game.train(count,{manual});if(!sample)return;
   lastSample=sample;preview={a:sample.a,b:sample.b};dirty=true;
-  introAnimating=manual&&game.data.phase===0;
+  introAnimating=manual&&game.clickPower===1;
   if(view==='machine')networkView.animate(sample,game.lab.getNetwork(game.data.family));
   else {displayed={a:sample.a,b:sample.b,type:sample.type};updateReadout(sample.after,sample.target);introAnimating=false;}
   if(manual)sound();
@@ -102,22 +106,12 @@ function measure() {
     if(milestone.phase===1)game.selectExample(2,3);
     const discoveries=['','Autres additions disponibles.','100 additions disponibles.','Calculatrice et soustraction disponibles.','Multiplication disponible.','Division disponible.','Parcours terminé.'];
     toast(discoveries[milestone.phase]);sound(true);
-    showNetwork();renderChapters();renderOperations();renderUpgrades();
-    if(view==='calculator')renderCalculatorKeys();save();$('last-correction').textContent='';
+    showNetwork();renderOperations();renderUpgrades();
+    if(view==='calculator')renderCalculatorKeys();save();
   }
   if(view==='repertoire')renderHeatmap();
 }
 
-function renderChapters() {
-  $('chapters').replaceChildren(...CHAPTERS.slice(0,6).map((chapter,i)=>{
-    const li=document.createElement('li');li.className='chapter'+(i===game.data.phase?' current':i<game.data.phase?' completed':'');
-    if(i===game.data.phase)li.setAttribute('aria-current','step');
-    const marker=document.createElement('span');marker.className='chapter-marker';marker.textContent=i<game.data.phase?'✓':String(i+1).padStart(2,'0');
-    const title=document.createElement('strong');title.textContent=chapter.name;
-    const subtitle=document.createElement('small');subtitle.textContent=chapter.subtitle;
-    li.append(marker,title,subtitle);return li;
-  }));
-}
 function renderOperations() {
   $('operation-switcher').replaceChildren(...game.unlocked.map(type=>{
     const family=FAMILIES[type],button=document.createElement('button');
@@ -128,10 +122,6 @@ function renderOperations() {
   }));
 }
 
-function levelDescription(upgrade) {
-  const level=game.data.upgrades[upgrade.id];
-  return upgrade.id==='batch'?`${game.clickPower} exemple${game.clickPower>1?'s':''} / clic`:upgrade.id==='auto'?`${AUTO_RATES[level]} exemple${AUTO_RATES[level]>1?'s':''} / s`:level?'Répétition active':'Cibler les erreurs';
-}
 function renderUpgrades() {
   $('upgrades').replaceChildren(...UPGRADES.map(upgrade=>{
     const item=document.createElement('article');item.className='upgrade';item.dataset.upgrade=upgrade.id;
@@ -165,18 +155,10 @@ function updateUpgrades() {
   $('workshop-panel').hidden=visible===0;
 }
 
-function renderChart() {
-  const points=game.data.histories[game.scopeKey]||[];
-  if(!points.length)return;
-  const max=Math.max(.05,...points.map(p=>p.mae)),last=points.at(-1).trained,first=points[0].trained;
-  const values=points.map((p,i)=>[points.length===1?2:2+(p.trained-first)/Math.max(1,last-first)*256,65-p.mae/max*58]);
-  const line=values.map((p,i)=>`${i?'L':'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
-  $('chart-line').setAttribute('d',line);$('chart-area').setAttribute('d',line+` L${values.at(-1)[0]},70 L${values[0][0]},70 Z`);
-  $('sparkline').setAttribute('aria-label',`Erreur moyenne sur ${game.metrics.total} calculs : ${fmt(points[0].mae)} au début de la courbe, ${fmt(points.at(-1).mae)} maintenant.`);
-}
 function render() {
   const metrics=game.metrics,phase=game.data.phase;
   $('balance').textContent=integer.format(game.data.balance);$('total-count').textContent=integer.format(game.total);
+  $('revision-count-wrap').hidden=game.revisions===0;$('revision-count').textContent=integer.format(game.revisions);
   $('current-calculation').textContent=displayed.a+' '+FAMILIES[displayed.type].symbol+' '+displayed.b;
   $('current-calculation').hidden=phase>=1;
   $('input-controls').hidden=phase<1;
@@ -187,7 +169,7 @@ function render() {
   $('operation-switcher').hidden=game.unlocked.length<2;
   $('metrics-panel').hidden=phase<1;
   $('train-label').textContent=game.clickPower===1?'Lancer une bille':'Lancer '+integer.format(game.clickPower)+' billes';
-  $('train').disabled=introAnimating&&phase===0;
+  $('train').disabled=introAnimating;
   $('auto-toggle').hidden=game.data.upgrades.auto===0;
   $('auto-toggle').disabled=false;
   $('auto-toggle').setAttribute('aria-pressed',String(game.data.upgrades.auto>0&&game.data.autoEnabled));
@@ -196,9 +178,9 @@ function render() {
   $('sample-control-wrap').hidden=!game.data.selected||phase<2;
   $('sample-clear').textContent='Tous les cas';
   $('metric-mae').textContent=fmt(metrics.mae);$('metric-accuracy').textContent=percent(metrics.accuracy);$('metric-rate').textContent=game.autoRate+' / s';
-  $('metric-accuracy-label').textContent='Écart < '+String(metrics.tolerance).replace('.',',');
+  $('metric-accuracy-label').textContent='Écart ≤ '+String(metrics.tolerance).replace('.',',');
   $('metrics-scope').textContent=metrics.total+' calculs';
-  renderInputControls();updateUpgrades();renderChart();lastUi=performance.now();
+  renderInputControls();updateUpgrades();lastUi=performance.now();
 }
 
 function renderHeatmap() {
@@ -218,8 +200,8 @@ function renderHeatmap() {
     fragment.append(button);
   }
   $('heatmap').replaceChildren(fragment);$('grid-scope').textContent=FAMILIES[type].label;
-  if(selected){const value=game.lab.predict(type,selected.a,selected.b).value,target=game.target(type,selected.a,selected.b);$('sample-readout').textContent=`${selected.a} ${FAMILIES[type].symbol} ${selected.b} : ${fmt(value)} proposé, ${fmt(target)} attendu. Erreur : ${fmt(Math.abs(value-target))}.`;}
-  else $('sample-readout').textContent='Choisir un calcul pour l’entraîner.';
+  if(selected){const value=game.lab.predict(type,selected.a,selected.b).value,target=game.target(type,selected.a,selected.b);$('sample-readout').textContent=`${selected.a} ${FAMILIES[type].symbol} ${selected.b} ≈ ${fmt(value)} · écart ${fmt(Math.abs(value-target))}`;}
+  else $('sample-readout').textContent='';
 }
 function renderCalculatorKeys() {
   const keys=['7','8','9','÷','4','5','6','×','1','2','3','−','0',',','C','+'];
@@ -238,13 +220,12 @@ function calculate(event) {
     const label=document.createElement('span');label.textContent='Estimation';
     const estimate=document.createElement('strong');estimate.textContent=`≈ ${new Intl.NumberFormat('fr-FR',{minimumFractionDigits:4,maximumFractionDigits:4}).format(result.estimate)}`;
     const rounded=document.createElement('small');rounded.textContent=`Résultat composé : ${new Intl.NumberFormat('fr-FR',{maximumFractionDigits:4}).format(result.result)}`;
-    const context=document.createElement('small');context.textContent='Opérations utilisées : '+result.uses.map(type=>FAMILIES[type]?.label.toLowerCase()||type).join(', ')+'.';
-    output.append(label,estimate,rounded,context);
+    output.append(label,estimate,rounded);
     $('calculation-steps').replaceChildren(...result.trace.map(step=>{const p=document.createElement('p');p.textContent=step;return p;}));$('calculation-trace').hidden=false;
   } catch(error){output.classList.add('error');output.textContent=error.message||'Ce calcul ne peut pas être effectué.';}
 }
 function applyPreferences() { const reduced=game.data.preferences.reducedMotion||reduceBySystem;document.body.classList.toggle('reduce-motion',reduced);$('sound-enabled').checked=game.data.preferences.sound;$('motion-reduced').checked=game.data.preferences.reducedMotion;showNetwork(); }
-function reset() { introAnimating=false;inputControlsKey='';game=new GameSession();lastSample=null;preview={a:2,b:3};autoCredit=0;view='machine';document.querySelectorAll('dialog[open]').forEach(dialog=>dialog.close());renderChapters();renderOperations();renderUpgrades();applyPreferences();changeView('machine');render();save();toast('Une nouvelle bille. Une nouvelle expérience.'); }
+function reset() { introAnimating=false;inputControlsKey='';game=new GameSession();lastSample=null;preview={a:2,b:3};autoCredit=0;view='machine';document.querySelectorAll('dialog[open]').forEach(dialog=>dialog.close());renderOperations();renderUpgrades();applyPreferences();changeView('machine');render();save();toast('Nouvelle partie.'); }
 
 $('train').addEventListener('click',()=>train(game.clickPower,true));
 $('input-a').addEventListener('change',chooseInputs);
@@ -256,21 +237,20 @@ $('sample-clear').addEventListener('click',()=>{game.data.selected=null;dirty=tr
 $('watch-sample').addEventListener('click',()=>changeView('machine'));
 $('calculator-form').addEventListener('submit',calculate);
 $('settings-open').addEventListener('click',()=>{$('settings-dialog').showModal();});
-$('help-open').addEventListener('click',()=>{$('help-dialog').showModal();});
 document.querySelectorAll('.dialog-close').forEach(button=>button.addEventListener('click',()=>button.closest('dialog').close()));
 document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('click',event=>{if(event.target===dialog){const bounds=dialog.getBoundingClientRect();if(event.clientX<bounds.left||event.clientX>bounds.right||event.clientY<bounds.top||event.clientY>bounds.bottom)dialog.close();}}));
 $('sound-enabled').addEventListener('change',event=>{game.data.preferences.sound=event.target.checked;dirty=true;sound();save();});
 $('motion-reduced').addEventListener('change',event=>{networkView.finishImmediately();game.data.preferences.reducedMotion=event.target.checked;dirty=true;applyPreferences();save();});
-$('export-save').addEventListener('click',()=>{save();const blob=new Blob([JSON.stringify(game.exportState(),null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`fakir-progression-${new Date().toISOString().slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Progression exportée avec les poids appris.');});
+$('export-save').addEventListener('click',()=>{save();const blob=new Blob([JSON.stringify(game.exportState(),null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`fakir-progression-${new Date().toISOString().slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Partie exportée.');});
 $('import-save').addEventListener('click',()=>$('save-file').click());
-$('save-file').addEventListener('change',async event=>{const file=event.target.files[0];if(!file)return;try{if(file.size>2_000_000)throw new Error('Ce fichier est trop volumineux.');const candidate=new GameSession();candidate.restore(await file.text());game=candidate;introAnimating=false;inputControlsKey='';lastSample=null;preview=game.selectedExample;autoCredit=0;renderChapters();renderOperations();renderUpgrades();applyPreferences();if(game.data.phase<3&&view==='calculator')changeView('machine');if(game.data.phase<1&&view==='repertoire')changeView('machine');if(view==='calculator')renderCalculatorKeys();if(view==='repertoire')renderHeatmap();render();save();$('settings-dialog').close();toast('Ta machine a retrouvé ses apprentissages.');}catch(error){toast(error.message||'Ce fichier ne peut pas être importé.');}finally{event.target.value='';}});
+$('save-file').addEventListener('change',async event=>{const file=event.target.files[0];if(!file)return;try{if(file.size>2_000_000)throw new Error('Ce fichier est trop volumineux.');const candidate=new GameSession();candidate.restore(await file.text());game=candidate;introAnimating=false;inputControlsKey='';lastSample=null;preview=game.selectedExample;autoCredit=0;renderOperations();renderUpgrades();applyPreferences();if(game.data.phase<3&&view==='calculator')changeView('machine');if(game.data.phase<1&&view==='repertoire')changeView('machine');if(view==='calculator')renderCalculatorKeys();if(view==='repertoire')renderHeatmap();render();save();$('settings-dialog').close();toast('Partie reprise.');}catch(error){toast(error.message||'Ce fichier ne peut pas être importé.');}finally{event.target.value='';}});
 $('reset-game').addEventListener('click',()=>{$('settings-dialog').close();$('reset-dialog').showModal();});
 $('confirm-reset').addEventListener('click',reset);
 window.addEventListener('pagehide',()=>{if(dirty)save();});
 document.addEventListener('visibilitychange',()=>{autoCredit=0;if(document.hidden&&dirty)save();});
 
-renderChapters();renderOperations();renderUpgrades();renderCalculatorKeys();applyPreferences();render();
-if(storageFailed){$('save-status').textContent='Sauvegarde non chargée · export disponible';$('save-status').classList.add('failed');toast('La progression précédente n’a pas pu être chargée. Tu peux importer une sauvegarde depuis les réglages.');}
+renderOperations();renderUpgrades();renderCalculatorKeys();applyPreferences();render();
+if(storageFailed){$('save-status').textContent='Sauvegarde non chargée · export disponible';$('save-status').classList.add('failed');toast('Sauvegarde illisible.');}
 let lastTick=performance.now();
 setInterval(()=>{const now=performance.now(),delta=Math.min(.5,(now-lastTick)/1000);lastTick=now;if(document.hidden)return;if(game.autoRate>0){autoCredit+=delta*game.autoRate;const count=Math.floor(autoCredit);if(count){autoCredit-=count;train(count,false);}}if(now-lastUi>400)render();},200);
 setInterval(()=>{if(dirty)save();},5000);

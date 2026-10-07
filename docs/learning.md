@@ -1,140 +1,133 @@
-# Apprentissage, mesures et limites
+# Moteur, apprentissage et mesures
 
-Fakir met en scène une boucle simple : **prédire, comparer, corriger**. Cette page précise ce qui est appris, ce qui est fourni par le programme et ce que les mesures permettent de conclure.
+Fakir utilise un plateau différentiable : la trajectoire numérique produit la réponse et ses paramètres sont corrigés à partir d'exemples supervisés. Cette page décrit le moteur de la partie v3. Les sources de référence sont [`learning.js`](../js/learning.js), [`optimizer.js`](../js/optimizer.js), [`network-view.js`](../js/network-view.js) et leurs [tests](../tests/).
 
-## Les trois niveaux de l'expérience
+## Trois notions différentes
 
-### 1. Apprendre un répertoire d'opérations
-
-Le moteur reçoit deux nombres et produit une estimation. Pour chaque famille, les exemples d'entraînement appartiennent à une grille finie :
-
-| Famille | Premier nombre | Second nombre | Taille de la grille complète | Tolérance par défaut |
-| --- | --- | --- | --- | --- |
-| Addition | Entier de 0 à 9 | Entier de 0 à 9 | 100 calculs | Erreur absolue ≤ 0,5 |
-| Soustraction | Entier de 0 à 9 | Entier de 0 à 9 | 100 calculs | Erreur absolue ≤ 0,5 |
-| Multiplication | Entier de 0 à 9 | Entier de 0 à 9 | 100 calculs | Erreur absolue ≤ 0,5 |
-| Division | Entier de 0 à 9 | Entier de 1 à 9 | 90 calculs | Erreur absolue ≤ 0,15 |
-
-Les couples sont ordonnés : `2 + 3` et `3 + 2` sont deux exemples distincts. La commutativité n'est pas ajoutée comme une règle au réseau. Le programme connaît les réponses attendues pour produire les exemples supervisés.
-
-### 2. Composer des calculs
-
-La calculatrice utilise les prédictions élémentaires dans des procédures d'assemblage. Les règles de numération, de position, de retenue, d'emprunt et de traitement des décimales sont écrites dans le programme. Le réseau n'apprend pas lui-même ces procédures.
-
-Par exemple, traiter `38 + 47` peut réutiliser les additions entre chiffres et transporter une retenue. Cette réutilisation permet de dépasser la longueur des exemples élémentaires. Elle ne transforme pas la calculatrice en un unique réseau ayant appris directement toutes les additions de nombres à plusieurs chiffres.
-
-Une étape élémentaire inexacte peut modifier une retenue ou un chiffre, puis affecter le reste du calcul. Le résultat composé et sa trace permettent d'observer ces effets. Une mesure globale sur le répertoire ne constitue pas une probabilité de réussite pour une expression particulière.
-
-La [calculatrice actuelle](../js/calculator.js) accepte une opération entre deux nombres signés, avec au plus trois chiffres entiers et deux décimales par nombre. Elle fournit deux valeurs : une estimation conservant les sorties non arrondies des opérations élémentaires, et un résultat décodé pour l'assemblage. Ces valeurs peuvent différer ; le résultat n'est pas remplacé par l'évaluation native de l'expression complète.
-
-La division posée réutilise notamment les produits appris et les soustractions apprises pour choisir les chiffres et mettre à jour le reste. Le réseau de division peut proposer un quotient lorsque les opérandes de l'étape sont des chiffres. Le programme traite six positions décimales internes avant l'arrondi final à quatre décimales. Des bornes de composition empêchent les estimations invalides de provoquer une boucle sans fin ; un reste décodé négatif est ramené à zéro avec une indication dans la trace. Ces règles de contrôle sont elles aussi fournies par le programme.
-
-### 3. Démontrer une généralisation
-
-La grille évaluée est celle dans laquelle les exemples d'entraînement sont tirés. À mesure que le modèle travaille, les mêmes couples peuvent être présentés de nombreuses fois. Les résultats actuels mesurent donc la qualité sur ce répertoire ; aucun ensemble de test indépendant n'est réservé dans cette version.
-
-Le moteur accepte aussi des entrées finies hors de la grille pendant la prédiction. La simple possibilité de les saisir ne démontre pas qu'il sait extrapoler. Une expérience de généralisation demanderait un protocole distinct : réserver des couples avant l'entraînement, fixer les critères de réussite, puis mesurer séparément ces exemples et les entrées hors domaine.
-
-Il faut ainsi distinguer une bonne approximation du répertoire, une composition réussie avec des règles fournies et un résultat obtenu sur des données effectivement nouvelles.
-
-## Un réseau par famille
-
-Le moteur est défini dans [`js/learning.js`](../js/learning.js). Chaque famille dispose d'un perceptron multicouche de taille **2 → 12 → 12 → 1** : deux entrées, deux couches cachées de douze neurones et une sortie. Cela représente 205 poids et biais entraînables par famille.
-
-Les couches cachées utilisent `tanh`. La sortie est linéaire : sa valeur peut varier librement et n'est pas bornée à l'intervalle des réponses du répertoire. Les entrées sont normalisées par `x / 4,5 − 1` et la sortie est remise à l'échelle de sa famille.
-
-Les paramètres de chaque réseau sont indépendants. Entraîner une addition ne modifie pas les poids de la multiplication. À l'intérieur d'une même famille, tous les couples partagent les mêmes paramètres : corriger un calcul peut améliorer ou dégrader les réponses à d'autres calculs.
-
-## Ce que fait un exemple d'entraînement
-
-Une opération d'entraînement comporte les étapes suivantes :
-
-1. Le réseau calcule sa proposition à partir des deux entrées et de ses poids courants.
-2. Le professeur calcule la cible arithmétique exacte.
-3. Le moteur forme l'erreur entre la prédiction normalisée et la cible normalisée.
-4. La rétropropagation calcule comment les poids et les biais contribuent à cette erreur.
-5. Adam met à jour ces paramètres, puis le réseau produit une nouvelle proposition pour montrer l'effet de la correction.
-
-La fonction de perte est la moitié du carré de l'erreur sur la sortie normalisée. Adam conserve des moyennes mobiles du gradient et de son carré. L'implémentation utilise `β1 = 0,5`, `β2 = 0,999`, `ε = 10⁻⁸`, un gradient borné composante par composante à `[-5, 5]` et un taux d'apprentissage `0,006 / (1 + t / 1500)`, où `t` compte les mises à jour. Ces réglages appartiennent à Fakir ; ce ne sont pas tous les paramètres par défaut de l'article Adam de Kingma et Ba.[¹](#sources)
-
-Un exemple produit une mise à jour. Les commandes accélérées présentent plusieurs exemples ; elles ne remplacent pas le calcul des gradients par une augmentation artificielle de la précision. Une correction n'est pas garantie d'améliorer chaque réponse à chaque étape.
-
-### Le programme d'entraînement
-
-Le curriculum automatique des additions commence par répéter `2 + 3` pendant les 20 premiers exemples. Il passe ensuite aux chiffres de 0 à 4 jusqu'à 200 exemples entraînés, puis aux chiffres de 0 à 9. Les autres familles utilisent leur grille complète par défaut.
-
-Ce curriculum décrit le mode automatique du moteur. Le clicker choisit ses programmes selon l'étape atteinte et révèle progressivement les commandes : améliorations, sélecteurs d'entrées, mesures, répertoire, puis calculatrice. L'ouverture reste limitée au premier calcul et à son bouton. Cette progression d'interface ne constitue pas une mesure scientifique indépendante.
-
-## Le professeur et la prédiction
-
-Un apprentissage supervisé a besoin de réponses de référence. Ici, elles sont obtenues par les opérations arithmétiques du programme, dans les chemins d'entraînement et d'évaluation.
-
-La séparation est explicite dans le code : `predict()` lance le calcul du réseau et remet sa sortie à l'échelle ; cette inférence ne consulte ni la bonne réponse du couple, ni le compteur d'exemples pour fabriquer son résultat. Le compteur intervient dans le curriculum et l'optimiseur, mais ne donne pas directement une « précision » à la prédiction.
-
-La calculatrice possède, de son côté, les règles d'assemblage décrites plus haut. La séparation entre inférence et professeur ne signifie donc pas que toute l'arithmétique du logiciel a été apprise.
-
-## Lire les mesures
-
-`evaluate()` parcourt tous les couples de la grille demandée, sans entraîner le modèle. Le programme peut mesurer le premier exemple, la petite grille ou la grille complète ; il faut lire le périmètre affiché avec le résultat.
-
-| Mesure | Interprétation |
+| Notion | Ce que réalise le projet |
 | --- | --- |
-| Nombre d'exemples entraînés | Nombre de mises à jour effectuées ; un même couple peut revenir. |
-| Erreur absolue d'un calcul | Distance entre la sortie du réseau et sa cible. |
-| Erreur absolue moyenne, ou MAE | Moyenne de ces distances sur tous les couples évalués. |
-| Erreur maximale | Plus grand écart observé dans cette grille. |
-| Part dans la tolérance | Proportion de couples dont l'erreur absolue ne dépasse pas le seuil choisi. |
+| Apprendre le répertoire | Ajuster les angles sur des opérations entre chiffres et mesurer les réponses sur cette grille. |
+| Composer un calcul | Réutiliser les prédictions avec des règles de position, retenue, emprunt et traitement des décimales écrites dans le programme. |
+| Démontrer une généralisation | Évaluer séparément des couples réservés ou un autre domaine. Les jauges du jeu ne constituent pas ce test. |
 
-Une valeur de 95 % dans la tolérance signifie que 95 % des couples du périmètre satisfont le seuil au moment de la mesure. Elle ne signifie pas « 95 % de chances que le prochain résultat soit exact ». Une progression du compteur n'impose aucune progression de cette jauge.
+Les exemples sont tirés dans une grille finie. Un même couple revient et peut être révisé plusieurs fois. Une bonne approximation de cette grille ne démontre ni l'extrapolation, ni une compréhension générale de l'arithmétique.
 
-Les réponses de division restent décimales dans le moteur : `1 ÷ 2` a pour cible `0,5`. `predict()` ne les arrondit pas à un entier. Les arrondis nécessaires pour écrire un chiffre dans un calcul composé appartiennent à la calculatrice et doivent être distingués de la sortie brute du modèle.
+## Le plateau est le modèle
 
-## Le rôle du plateau
+Chaque famille — addition, soustraction, multiplication et division — possède **8 rangées de 17 guides**. Un guide porte un paramètre entraînable `p` et son angle est `θ = 1,05 × tanh(p)`, en radians. Il y a donc **136 paramètres par famille**. Les angles restent compris entre `−1,05` et `1,05` radians ; ils ne sont pas les biais d'un MLP dessiné sous forme de potards.
 
-La [visualisation](../js/network-view.js) commence par deux rails gradués : **A** sur le premier, **B** sur le second. Les deux positions et le segment orienté qui les relie rendent l'entrée visible. Passer de `2 + 3` à `2 + 1` déplace B et change la direction de départ. Il faut lire **la position et la direction ensemble** : à échelle fixe, les couples `(2, 3)` et `(4, 5)` ont le même angle, mais occupent des positions différentes. Le moteur reçoit toujours les deux valeurs numériques ; il ne reconstruit pas les nombres à partir du dessin.
+Les guides sont régulièrement placés sur `[-2, 2]`. À une position donnée, une interpolation B-spline cubique combine **au plus quatre guides voisins** de la rangée. Les paramètres éloignés ne contribuent pas à cette interaction. Aux bords, les indices sont ramenés aux guides disponibles.
 
-Sous les rails, les deux couches cachées de douze neurones et la sortie représentent le MLP réel. Les liaisons reflètent les poids ; les potards montrent les biais appris sur une échelle angulaire fixe, fondée sur `atan(8 × biais)`. L'activité des neurones et les impulsions utilisent les activations du modèle ; le retour de correction utilise ses gradients. Lorsqu'un état précédent correspondant est disponible, les signaux descendants reflètent les contributions `poids × activation`. Pour des entraînements groupés dont les étapes visuelles sont condensées, les activations réelles sont montrées sans inventer un état intermédiaire.
+Pour deux chiffres `a` et `b`, les deux rails fournissent :
 
-Une sélection de signaux est dessinée pour garder le plateau lisible. La bille représente un exemple et son passage dans le réseau : elle ne rebondit pas selon une simulation physique de collisions. Les opérations numériques du MLP produisent la réponse ; la visualisation expose leur activité sans devenir une deuxième implémentation de l'apprentissage.
+```text
+A = 2a / 9 − 1
+B = 2b / 9 − 1
+v = B − A
+x = B + 0,25v
+```
 
-## Sauvegarde et reprise
+`x` est la position du premier impact et `v` la direction horizontale. **La position et la direction comptent ensemble** : `(2, 3)` et `(4, 5)` ont la même différence, donc la même direction initiale, mais occupent des positions différentes.
 
-L'état du moteur contient les poids, les biais, les compteurs, les mémoires Adam et l'état pseudoaléatoire de chaque famille. La conservation de ces éléments permet de poursuivre le même entraînement après restauration, dans le même environnement de calcul.
+À chaque rangée, le moteur interpole l'angle local puis applique :
 
-L'import vérifie la version, l'architecture, les dimensions, les nombres finis, les variances et la cohérence des compteurs avant de remplacer l'état courant. Un import de modèle invalide est rejeté sans modifier le modèle en cours.
+```text
+v' = −v + tan(angle local)
+x' = x + 0,7v'
+```
 
-La sauvegarde du jeu utilise le stockage local du navigateur et peut être exportée en JSON. Les états d'entraînement restent sur l'appareil ; aucun service d'apprentissage distant n'intervient.
+Les nouveaux `x` et `v` alimentent la rangée suivante. La réponse vaut `décalage + échelle × x final`, avec des constantes propres à chaque famille :
 
-## Comparaison avec le prototype d'origine
+| Famille | Décalage | Échelle |
+| --- | ---: | ---: |
+| Addition | 9 | 9 |
+| Soustraction | 0 | 9 |
+| Multiplication | 40,5 | 40,5 |
+| Division | 4,5 | 4,5 |
 
-Le fichier [`reference/prototype-v1.html`](../reference/prototype-v1.html) conserve la première expérience de plateau, de corrections et de déblocages. Cette référence permet d'examiner les choix qui ont évolué.
+La position et la sortie ne sont pas tronquées aux limites du plateau. Les sorties négatives, décimales ou incorrectes restent observables.
 
-| Sujet | Prototype conservé | Version actuelle |
-| --- | --- | --- |
-| Proposition de la machine | La simulation réintroduit la cible dans la trajectoire et le résultat, en fonction d'un indice de progression. | L'inférence provient des poids et biais du réseau. La cible est utilisée ensuite pour corriger et mesurer. |
-| Précision affichée | Une formule dépend surtout du nombre de tours et de la cible. | L'évaluation calcule les erreurs sur chaque couple de la grille choisie. |
-| Domaine de sortie | La proposition est bornée à `[-10, 20]`, ce qui empêche notamment d'atteindre `9 × 9 = 81`. | La sortie linéaire du réseau peut dépasser 20 ; ses erreurs restent mesurées. |
-| Mémoire | L'état de progression et le biais sont attachés aux couples d'opérandes, avec des clous partagés. | Les couples d'une famille partagent un réseau entraînable. |
-| Décimales | La fonction de table arrondit la proposition à un entier. | Le moteur conserve la prédiction brute, y compris pour les quotients décimaux. |
-| Grandes opérations | Plusieurs chemins reposent sur des approximations spécifiques au prototype. | La calculatrice sépare les prédictions élémentaires des règles de composition fournies. |
+Cette règle est un modèle simplifié de rebond, conçu pour être différentiable. Elle ne prétend pas reproduire une réflexion spéculaire exacte, une gravité ou des collisions de billes solides. Le dessin suit les traces calculées par ce moteur ; il ne substitue pas une trajectoire décorative à une réponse produite ailleurs.
 
-Le prototype reste une référence de conception. Il n'est pas importé par le jeu et ses mécanismes ne servent pas à entraîner les réseaux actuels.
+## Corriger et réviser
 
-## Ce que vérifient les tests du moteur
+Un lancement présente un couple au moteur. Celui-ci calcule d'abord sa réponse avec ses paramètres actuels. Le professeur fournit ensuite la cible arithmétique exacte, utilisée pour former la perte et ses gradients. `predict()` ne consulte ni cette cible, ni une table de réponses mémorisées : l'inférence utilise les entrées et les angles appris.
 
-[`tests/learning.test.mjs`](../tests/learning.test.mjs) examine notamment :
+Les paramètres commencent avec de petits angles aléatoires, sans poids préentraînés. L'ouverture d'une nouvelle étape conserve ce qui a été appris. Chaque famille garde son propre plateau : entraîner l'addition ne modifie pas la multiplication.
 
-- l'apprentissage du premier exemple et l'amélioration sur les quatre grilles ;
-- la dépendance de l'inférence aux paramètres, en modifiant explicitement les poids ;
-- l'indépendance des mémoires entre familles ;
-- la concordance de gradients analytiques avec des dérivées numériques ;
-- la reprise déterministe de l'entraînement après export et restauration ;
-- le calcul exhaustif des métriques, sans effet sur l'état appris ;
-- le rejet de sauvegardes invalides sans altérer l'état en cours.
+L'optimiseur **L-BFGS**, implémenté en JavaScript, reprend les seuls couples déjà présentés. La mémoire contient une cible par couple distinct et conserve aussi ses répétitions. Les répétitions sont comptées sans multiplier silencieusement le poids de ce couple dans l'objectif de révision. Aucune grille complète n'est injectée dans l'entraînement avant d'avoir été rencontrée.
 
-Ces contrôles portent sur les comportements décrits. Ils ne démontrent ni une exactitude générale de la calculatrice, ni une généralisation hors du répertoire, ni une progression monotone pour toutes les graines et tous les ordres d'exemples.
+La perte moyenne combine, pour chaque couple mémorisé, l'erreur quadratique sur la sortie normalisée et une pénalité de bord : `0,1 × somme(max(|x| − 1,9, 0)²)` sur les neuf positions du trajet. Cette pénalité encourage la bille à rester près du plateau sans borner sa position ni lui fournir la bonne réponse.
 
-## Sources
+Chaque présentation demande au plus **un pas L-BFGS accepté**, avec une mémoire de vingt couples de courbure et une recherche limitée à quarante essais. Tant qu'un seul couple distinct est connu, la variation de chaque paramètre `p` est limitée à `0,004` par pas pour rendre les premières corrections visibles. Elle est ensuite limitée à `0,003` jusqu'à la couverture de toute la grille : 100 couples, ou 90 pour la division. Après cette couverture, cette limite supplémentaire est retirée. Les premiers cas peuvent ainsi être corrigés sans déformer trop vite les guides, tout en conservant les paramètres acquis. Un pas peut aussi ne rien modifier lorsque l'optimiseur a convergé ou ne trouve pas d'amélioration acceptable.
 
-- **Sources du projet :** le [prototype conservé](../reference/prototype-v1.html), le [moteur courant](../js/learning.js), ses [tests](../tests/learning.test.mjs) et la [calculatrice](../js/calculator.js). Les exemples supervisés sont générés par le programme ; aucun corpus externe n'est téléchargé.
-- **¹ Optimiseur :** Diederik P. Kingma et Jimmy Ba, [*Adam: A Method for Stochastic Optimization*](https://arxiv.org/abs/1412.6980), article présenté à ICLR 2015. Fakir en utilise le principe d'estimation des deux premiers moments du gradient, avec les réglages indiqués dans cette page.
+Une révision évalue la perte et le gradient sur ces exemples mémorisés, puis cherche une mise à jour acceptable. Les essais de la recherche de pas ne deviennent pas des états appris intermédiaires. Quand la liste des couples change, les informations de courbure devenues périmées sont invalidées ; les paramètres acquis restent conservés.
+
+Il faut distinguer **la localité d'un trajet** et **la portée d'une révision**. Un trajet utilise au plus quatre guides par rangée. Une révision de plusieurs couples utilise l'union de leurs trajets : elle peut corriger plus de guides que ceux visités par la seule bille affichée. On ne peut donc pas attribuer toute une révision collective à cette unique bille.
+
+Les compteurs conservés par le moteur distinguent ces événements :
+
+| Compteur | Ce qu'il compte |
+| --- | --- |
+| `trained` | Présentations, y compris les répétitions d'un même couple. |
+| `observed` | Couples distincts déjà rencontrés. |
+| `optimizerSteps` | Mises à jour effectivement acceptées. |
+| `gradientEvaluations` | Évaluations de l'objectif et de son gradient par l'optimiseur. |
+| `exampleEvaluations` | Couples évalués au total dans ces évaluations d'objectif. |
+| `revisions` | Réévaluations des autres couples mémorisés : `exampleEvaluations − gradientEvaluations`, soit `(couples connus − 1) × évaluations du pas`, cumulées. |
+
+Réévaluer cent couples déjà connus pendant une recherche de pas n'est pas lancer cent nouveaux exemples. Ces compteurs ne sont pas tous affichés à l'écran ; la partie distingue notamment **Exemples** et **Révisions**. Les calculs auxiliaires des traces et des gradients destinés à l'animation ne sont pas ajoutés au compteur d'évaluations de l'optimiseur.
+
+## Lire la précision
+
+`evaluate()` calcule les réponses de tous les couples du périmètre demandé, sans entraîner le modèle ni enrichir sa mémoire d'exemples. Le premier calcul, la petite grille et la grille complète sont des périmètres différents.
+
+| Famille | Premier nombre | Second nombre | Grille complète | Tolérance par défaut |
+| --- | --- | --- | ---: | --- |
+| Addition | Entier de 0 à 9 | Entier de 0 à 9 | 100 couples | Erreur absolue ≤ 0,5 |
+| Soustraction | Entier de 0 à 9 | Entier de 0 à 9 | 100 couples | Erreur absolue ≤ 0,5 |
+| Multiplication | Entier de 0 à 9 | Entier de 0 à 9 | 100 couples | Erreur absolue ≤ 0,5 |
+| Division | Entier de 0 à 9 | Entier de 1 à 9 | 90 couples | Erreur absolue ≤ 0,15 |
+
+Les couples sont ordonnés : `2 + 3` et `3 + 2` restent distincts. La commutativité n'est pas introduite comme règle dans l'inférence.
+
+| Mesure | Signification |
+| --- | --- |
+| Erreur d'un calcul | Valeur absolue de la différence entre réponse et cible. |
+| Erreur moyenne, ou MAE | Moyenne de ces écarts sur le périmètre évalué. |
+| Erreur maximale | Plus grand écart dans ce périmètre. |
+| Part dans la tolérance | Proportion des couples dont l'écart ne dépasse pas le seuil. |
+
+Le jalon de multiplication demande **au moins 97 couples sur 100 à un écart ≤ 0,5**, ainsi que le minimum de lancers prévu par la [progression](../js/game-state.js). Cela ne signifie pas « 97 % de chances que le prochain résultat soit exact ». Ce seuil est un objectif du jeu, pas une garantie de convergence pour toute graine et tout ordre d'exemples. Une correction peut améliorer certaines réponses et en dégrader d'autres.
+
+Le compteur n'impose pas la qualité affichée. La division conserve les sorties décimales : la cible de `1 ÷ 2` est `0,5`. Les arrondis de la calculatrice sont une étape distincte de la prédiction brute.
+
+## La calculatrice
+
+La [calculatrice](../js/calculator.js) accepte une opération entre deux nombres signés, avec au plus trois chiffres entiers et deux décimales par nombre. Elle compose les petites opérations prédites avec des règles de numération et de calcul posé fournies par le programme. Le plateau n'apprend pas lui-même les retenues, les emprunts ou les positions décimales.
+
+Le résultat n'est pas remplacé par l'évaluation native de toute l'expression. Une estimation élémentaire erronée peut changer un chiffre ou une retenue et affecter la suite. La trace permet d'examiner ces étapes. Une précision élevée sur la grille ne garantit pas tous les calculs composés.
+
+La division posée réutilise des produits et des soustractions appris ; le modèle de division peut proposer un quotient pour une étape entre chiffres. La composition traite six positions décimales internes avant l'arrondi final à quatre décimales. Des bornes de contrôle évitent les boucles sans fin lorsque les prédictions sont incohérentes. Une division par zéro est refusée.
+
+## Sauvegardes v3 et partie précédente
+
+La partie actuelle utilise la clé locale **`fakir-v3-progress`**. Son export JSON conserve la progression, les paramètres, les exemples déjà rencontrés, les compteurs, le générateur pseudoaléatoire et l'état d'optimisation. L'import valide l'état avant de remplacer la partie courante.
+
+La version MLP précédente reste disponible dans [`reference/fakir-v2.html`](../reference/fakir-v2.html), un fichier autonome. Elle continue d'utiliser **`fakir-v2-progress`**. Le lien **Partie → Partie précédente** apparaît lorsqu'une sauvegarde v2 existe sur la même origine. Les anciens poids ne sont pas convertis en angles et la nouvelle partie ne les charge pas. Recommencer en v3 ne supprime pas la sauvegarde v2.
+
+Chaque origine web possède son stockage : GitHub Pages, une adresse locale et un fichier ouvert directement ne partagent pas automatiquement leurs parties. **Exporter / Importer** permet de les transférer dans la version compatible. Aucun service distant ne reçoit les états appris.
+
+## Les deux références conservées
+
+Le [prototype v1](../reference/prototype-v1.html) conserve l'idée initiale du plateau, des corrections et des déblocages. Sa simulation réintroduit la cible dans la trajectoire et la prédiction à partir d'un indice lié au nombre de tours. Sa sortie est bornée à `[-10, 20]`, ce qui empêche notamment d'atteindre `9 × 9 = 81`, et sa fonction de table arrondit les propositions à un entier. Ces choix en font une référence de conception, pas le moteur d'apprentissage actuel.
+
+La [version v2](../reference/fakir-v2.html) remplace cette simulation par de vrais MLP denses **2 → 12 → 12 → 1**, entraînés avec Adam. Ses potards représentent des biais et les connexions restent denses. La v3 utilise directement le plateau à interactions locales pour calculer la réponse. Les trois versions permettent de comparer les expériences ; les archives ne sont pas importées par le moteur courant.
+
+## Vérifications et limites
+
+Les [tests](../tests/) constituent les contrôles reproductibles du moteur JavaScript. Un résultat dépend de la graine, des couples présentés et du budget de révision ; il ne peut pas être transformé en garantie universelle à partir de quelques expériences.
+
+Les vérifications pertinentes portent sur les gradients, la dépendance des sorties aux angles, la localité des interactions, l'absence de cibles cachées dans la prédiction, l'indépendance des familles, les compteurs, la restauration et l'évaluation sans entraînement. La visualisation demande également une vérification dans le navigateur.
+
+Cette expérience reste limitée à un petit domaine supervisé. Elle ne démontre pas une exactitude générale, une amélioration monotone, une convergence pour toute initialisation ou une simulation mécanique complète. Les exemples sont produits par le professeur du programme ; aucun corpus externe ni poids préentraîné n'est téléchargé.

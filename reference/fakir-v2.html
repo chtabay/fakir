@@ -1,0 +1,1943 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="description" content="Entraîner une petite machine à calculer, une bille à la fois.">
+  <title>Fakir</title>
+  <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTciIGZpbGw9IiMxMDE4MTkiLz48cGF0aCBkPSJNMzIgMTAgMTggMzBsMTQgMjMgMTUtMjNaIiBmaWxsPSJub25lIiBzdHJva2U9IiM4NmVmY2EiIHN0cm9rZS13aWR0aD0iMiIvPjxnIGZpbGw9IiM4NmVmY2EiPjxjaXJjbGUgY3g9IjMyIiBjeT0iMTAiIHI9IjUiLz48Y2lyY2xlIGN4PSIxOCIgY3k9IjMwIiByPSI0Ii8+PGNpcmNsZSBjeD0iNDciIGN5PSIzMCIgcj0iNCIvPjxjaXJjbGUgY3g9IjMyIiBjeT0iNTMiIHI9IjUiLz48L2c+PGNpcmNsZSBjeD0iMzIiIGN5PSIzMCIgcj0iMyIgZmlsbD0iI2U3YjU2NyIvPjwvc3ZnPgo=" type="image/svg+xml">
+  <style>
+:root {
+  color-scheme: light;
+  --bg: #fff;
+  --text: #222;
+  --muted: #666;
+  --line: #ccc;
+  --sans: Arial, Helvetica, sans-serif;
+  --mono: "Courier New", Courier, monospace;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.45 var(--sans); }
+button, input, select { font: inherit; color: inherit; }
+button, a, input, select, summary { touch-action: manipulation; }
+button { cursor: pointer; padding: 5px 10px; border: 1px solid #999; border-radius: 2px; background: #f1f1f1; line-height: 1.35; }
+button:hover:not(:disabled) { background: #e5e5e5; }
+button:active:not(:disabled) { background: #d9d9d9; }
+button:disabled { cursor: default; color: #888; border-color: #ccc; background: #f7f7f7; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid #222; outline-offset: 3px; }
+a { color: inherit; }
+h1, h2, p { margin: 0; }
+h1 { font-size: 18px; line-height: 1.3; }
+h2 { font-size: 14px; line-height: 1.4; }
+strong { font-weight: 400; }
+[hidden] { display: none !important; }
+
+.skip-link { position: fixed; top: -60px; left: 24px; padding: 8px; background: #fff; border: 1px solid #222; z-index: 30; }
+.skip-link:focus { top: 8px; }
+.page-header { padding: 22px 24px 12px; }
+.app-shell { display: flex; align-items: flex-start; gap: 32px; max-width: 850px; padding: 0 24px; }
+.workbench { flex: 0 1 480px; width: 480px; min-width: 0; }
+.view-panel, .machine-card { width: 100%; }
+.current-calculation { margin: 4px 0 7px; font: 19px/1.4 var(--mono); }
+.input-controls { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; font: 14px var(--mono); }
+.input-controls select { min-width: 46px; padding: 3px 5px; border: 1px solid #aaa; border-radius: 2px; background: #fff; }
+.network-stage { width: 100%; height: 340px; margin: 0; }
+.network-stage canvas { display: block; width: 100%; height: 100%; }
+.prediction-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 10px 0 14px; max-width: 360px; }
+.prediction-row span { display: block; font-size: 12px; color: var(--muted); }
+.prediction-row strong { display: block; margin-top: 3px; font: 15px/1.4 var(--mono); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.training-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.train-button { min-width: 130px; }
+.auto-button { display: inline-flex; align-items: center; gap: 6px; }
+.auto-button[aria-pressed="true"] { border-color: #555; background: #e4e4e4; }
+.auto-icon { font-family: var(--mono); }
+.example-count { margin-top: 10px; }
+.example-count strong, .currency strong { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.sample-actions { margin-top: 9px; }
+.text-button { border: 0; border-radius: 0; padding: 0; background: none; color: var(--muted); text-decoration: underline; font-size: 12px; }
+.text-button:hover:not(:disabled), .text-button:active:not(:disabled) { background: none; color: #222; }
+.page-footer { padding: 26px 24px 24px; }
+
+.view-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.view-tab { border-color: transparent; padding: 3px 7px; background: none; font-size: 12px; }
+.view-tab.selected { border-color: #aaa; background: #eee; }
+.tab-lock { display: none; }
+.operation-switcher { display: flex; gap: 5px; margin-bottom: 10px; }
+.operation-button { min-width: 30px; padding: 3px 7px; font: 16px var(--mono); }
+.operation-button.active { border-color: #222; background: #ddd; }
+.operation-button:disabled { display: none; }
+
+.utilities { flex: 1 1 250px; min-width: 0; padding-top: 5px; }
+.currency { margin: 0 0 13px; }
+.upgrades { display: grid; gap: 12px; }
+.upgrade { display: grid; gap: 4px; padding: 0; background: none; border: 0; }
+.upgrade-header { display: flex; align-items: center; gap: 8px; }
+.upgrade-header strong { font-size: 12px; }
+.upgrade-header small { margin-left: 8px; color: var(--muted); font: 11px var(--mono); }
+.upgrade-icon, .upgrade p, .upgrade.locked { display: none; }
+.upgrade button { display: inline-flex; align-items: center; justify-content: space-between; gap: 14px; width: max-content; max-width: 100%; font-size: 12px; }
+.upgrade button > span:last-child { font-family: var(--mono); }
+.measure-card { margin-top: 26px; max-width: 300px; }
+.measure-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.measure-heading > span { color: var(--muted); font-size: 11px; }
+.metric-row { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-top: 6px; font-size: 12px; }
+.metric-row strong { font: 12px var(--mono); white-space: nowrap; }
+.sparkline { width: 100%; height: 70px; }
+
+.panel-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
+.panel-heading > span { font-size: 12px; color: var(--muted); }
+.heatmap-wrap { overflow-x: auto; padding: 4px 0; }
+.heatmap { display: grid; grid-template-columns: 18px repeat(10, minmax(20px, 1fr)); gap: 3px; min-width: 280px; }
+.heatmap-heading { display: grid; place-items: center; font: 11px var(--mono); }
+.heatmap-cell { min-width: 0; min-height: 27px; padding: 1px; border: 1px solid #bbb; border-radius: 0; background: var(--cell-color, #fff); color: #222; aspect-ratio: 1; font: 10px var(--mono); }
+.heatmap-cell:hover:not(:disabled), .heatmap-cell.selected { outline: 1px solid #222; outline-offset: 1px; background: var(--cell-color, #fff); }
+.heatmap-cell.unseen, .heatmap-cell:disabled { background: #f8f8f8; border-color: #eee; color: #aaa; }
+.heatmap-legend { display: flex; align-items: center; justify-content: flex-end; gap: 7px; margin-top: 6px; font-size: 10px; color: var(--muted); }
+.color-ramp { width: 55px; height: 6px; background: linear-gradient(90deg, rgb(248,247,242), rgb(179,212,195)); }
+.sample-readout { margin: 16px 0 10px; font-size: 12px; }
+.secondary-button, .danger-button { font-size: 12px; }
+.calc-label { display: block; margin: 14px 0 5px; font-size: 12px; }
+.calculator-input { display: flex; gap: 6px; }
+.calculator-input input { width: 100%; min-width: 0; padding: 7px 9px; border: 1px solid #999; border-radius: 0; background: #fff; font: 19px var(--mono); }
+.calculator-input button { min-width: 40px; font: 20px var(--mono); }
+.calculator-keys { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: 8px; }
+.calculator-keys button { min-height: 31px; font: 14px var(--mono); }
+.muted { margin-top: 10px; color: var(--muted); font-size: 11px; }
+.calculation-output { margin-top: 18px; font-size: 12px; }
+.calculation-output:empty { display: none; }
+.calculation-output strong { display: block; margin: 7px 0; font: 22px var(--mono); }
+.calculation-output small { display: block; margin-top: 7px; font-size: 11px; }
+.calculation-output.error { color: #8a2626; }
+.calculation-trace { margin-top: 15px; font-size: 12px; }
+.calculation-trace summary { cursor: pointer; }
+#calculation-steps { margin-top: 9px; max-height: 240px; overflow: auto; font: 11px/1.6 var(--mono); }
+#calculation-steps p { margin: 6px 0; }
+
+dialog { width: min(430px, calc(100% - 32px)); padding: 20px; border: 1px solid #888; border-radius: 2px; background: #fff; color: #222; }
+dialog::backdrop { background: #0003; }
+.dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.dialog-heading h2 { font-size: 16px; }
+.icon-button { min-width: 27px; padding: 1px 6px; font-size: 19px; line-height: 1.2; }
+dialog p { margin: 10px 0; font-size: 12px; }
+.setting-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin: 16px 0; font-size: 12px; }
+.setting-row input { width: 16px; height: 16px; margin: 0; accent-color: #555; }
+.save-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.save-status { color: var(--muted); font-size: 11px; }
+.save-status.failed { color: #8a2626; }
+.reset-section { margin-top: 20px; padding-top: 16px; border-top: 1px solid #ddd; }
+.danger-button { border-color: #9b7272; }
+.settings-version { margin-top: 18px; color: var(--muted); font: 10px var(--mono); }
+.toast { position: fixed; bottom: 20px; left: 24px; max-width: min(480px, calc(100% - 48px)); padding: 9px 12px; border: 1px solid #999; background: #fff; color: #222; font-size: 12px; opacity: 0; pointer-events: none; z-index: 40; }
+.toast.visible { opacity: 1; }
+.noscript { padding: 16px 24px; }
+
+@media (max-width: 760px) {
+  .app-shell { flex-direction: column; gap: 24px; }
+  .workbench { flex: none; width: min(480px, 100%); }
+  .utilities { flex: none; width: min(480px, 100%); padding-top: 0; }
+  .utilities:not(:has(> :not([hidden]))) { display: none; }
+  .upgrade { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+  .upgrade-header small { display: block; margin: 2px 0 0; }
+  .measure-card { margin-top: 22px; max-width: 340px; }
+}
+
+@media (max-width: 560px) {
+  .page-header { padding: 18px 16px 10px; }
+  .app-shell { padding: 0 16px; }
+  .workbench, .utilities { max-width: 390px; }
+  .current-calculation { font-size: 18px; }
+  .network-stage { height: 340px; }
+  .prediction-row { gap: 9px; }
+  .prediction-row strong { font-size: 14px; }
+  .page-footer { padding: 24px 16px; }
+  .toast { left: 16px; max-width: calc(100% - 32px); }
+  .heatmap { gap: 2px; min-width: 260px; grid-template-columns: 16px repeat(10, minmax(18px, 1fr)); }
+  .heatmap-cell { min-height: 23px; font-size: 9px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+body.reduce-motion * { transition: none !important; animation: none !important; }
+
+</style>
+</head>
+<body>
+  <a class="skip-link" href="#train">Aller au bouton d’entraînement</a>
+  <header class="page-header"><h1>Fakir</h1></header>
+
+  <main class="app-shell">
+    <section class="workbench" aria-label="Machine">
+      <nav id="view-navigation" class="view-tabs" aria-label="Vues" hidden>
+        <button class="view-tab selected" data-view="machine" aria-selected="true">Machine</button>
+        <button id="repertoire-tab" class="view-tab" data-view="repertoire" aria-selected="false" hidden>Répertoire<span class="tab-lock" hidden></span></button>
+        <button id="calculator-tab" class="view-tab" data-view="calculator" aria-selected="false" hidden>Calculatrice<span class="tab-lock" hidden></span></button>
+      </nav>
+
+      <div id="machine-view" class="view-panel">
+        <div class="machine-card">
+          <div class="operation-switcher" id="operation-switcher" aria-label="Opération entraînée" hidden></div>
+          <p id="current-calculation" class="current-calculation" aria-label="Calcul courant">2 + 3</p>
+          <div id="input-controls" class="input-controls" hidden>
+            <select id="input-a" aria-label="Premier nombre"></select>
+            <span id="input-symbol" aria-hidden="true">+</span>
+            <select id="input-b" aria-label="Second nombre"></select>
+          </div>
+
+          <div class="network-stage">
+            <canvas id="network" width="480" height="340" aria-label="Trajet de la bille et réglage des connexions" role="img"></canvas>
+          </div>
+
+          <div class="prediction-row">
+            <div><span>Réponse</span><strong id="prediction">0,000</strong></div>
+            <div><span>Cible</span><strong id="target">5</strong></div>
+            <div><span>Écart</span><strong id="error">5,000</strong></div>
+          </div>
+          <div class="training-controls">
+            <button id="train" class="train-button"><span id="train-label">Lâcher une bille</span><small id="train-detail" hidden>1 exemple</small></button>
+            <button id="auto-toggle" class="auto-button" disabled aria-pressed="false" hidden><span class="auto-icon" aria-hidden="true"></span><span id="auto-label">Automatique</span></button>
+          </div>
+          <p class="example-count">Exemples : <strong id="total-count">0</strong></p>
+          <div id="sample-control-wrap" class="sample-actions" hidden><button class="text-button" id="sample-clear">Reprendre le programme</button></div>
+        </div>
+      </div>
+
+      <div id="repertoire-view" class="view-panel" hidden>
+        <section class="repertoire-card">
+          <div class="panel-heading"><h2>Répertoire</h2><span id="grid-scope">Addition</span></div>
+          <div class="heatmap-wrap"><div id="heatmap" class="heatmap" aria-label="Résultats mesurés par calcul"></div></div>
+          <div class="heatmap-legend"><span>Écart élevé</span><span class="color-ramp"></span><span>Faible</span></div>
+          <p class="sample-readout" id="sample-readout">Choisir un calcul.</p>
+          <button id="watch-sample" class="secondary-button">Voir la bille</button>
+        </section>
+      </div>
+
+      <div id="calculator-view" class="view-panel" hidden>
+        <section class="calculator-card">
+          <h2>Calculatrice</h2>
+          <label class="calc-label" for="calculation">Calcul</label>
+          <form id="calculator-form">
+            <div class="calculator-input"><input id="calculation" inputmode="text" autocomplete="off" spellcheck="false" value="38 + 47" aria-describedby="calculator-hint" maxlength="32"><button type="submit" aria-label="Calculer">=</button></div>
+          </form>
+          <div id="calculator-keys" class="calculator-keys"></div>
+          <p id="calculator-hint" class="muted">Deux nombres, jusqu’à 999,99 chacun.</p>
+          <div id="calculation-output" class="calculation-output" aria-live="polite"></div>
+          <details class="calculation-trace" id="calculation-trace" hidden><summary>Détail du calcul</summary><div id="calculation-steps"></div></details>
+        </section>
+      </div>
+    </section>
+
+    <aside class="utilities" aria-label="Entraînement">
+      <section id="workshop-panel" class="workshop" hidden>
+        <p class="currency">Crédits : <strong id="balance">0</strong></p>
+        <div id="upgrades" class="upgrades"></div>
+      </section>
+
+      <div id="metrics-panel" hidden>
+        <section class="measure-card" aria-label="Mesures">
+          <div class="measure-heading"><h2>Mesures</h2><span id="metrics-scope">1 calcul</span></div>
+          <div class="metric-row"><span>Erreur moyenne</span><strong id="metric-mae">5,000</strong></div>
+          <div class="metric-row"><span id="metric-accuracy-label">Dans la tolérance</span><strong id="metric-accuracy">0 %</strong></div>
+          <div class="metric-row"><span>Cadence</span><strong id="metric-rate">0 / s</strong></div>
+          <svg class="sparkline" id="sparkline" viewBox="0 0 260 70" role="img" aria-label="Évolution de l’erreur moyenne" hidden><defs><linearGradient id="chart-fill" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#222" stop-opacity=".15"/><stop offset="1" stop-color="#222" stop-opacity="0"/></linearGradient></defs><path id="chart-area" fill="url(#chart-fill)"/><path id="chart-line" fill="none" stroke="#222" stroke-width="1.5"/></svg>
+          <p id="measure-explanation" hidden></p>
+        </section>
+      </div>
+    </aside>
+  </main>
+
+  <footer class="page-footer"><button id="settings-open" class="text-button" aria-label="Ouvrir la partie et les sauvegardes">Partie</button></footer>
+
+  <div class="legacy-content" hidden>
+    <ol id="chapters"></ol>
+    <span id="chapter-kicker"></span>
+    <span id="chapter-title"></span>
+    <p id="chapter-description"></p>
+    <button id="help-open" type="button">Aide</button>
+    <span id="machine-status"></span>
+    <span id="network-size"></span>
+    <span id="network-phase"></span>
+    <span id="last-correction"></span>
+    <div class="milestone-card">
+      <span id="milestone-symbol"></span>
+      <strong id="milestone-title"></strong>
+      <span id="milestone-progress"></span>
+      <p id="milestone-description"></p>
+      <span id="milestone-bar"></span>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <dialog id="help-dialog">
+    <div class="dialog-heading"><h2>Fonctionnement</h2><button class="icon-button dialog-close" aria-label="Fermer">×</button></div>
+    <p>Chaque bille est un exemple. Le réseau propose une réponse ; le professeur la compare à la cible et ajuste les poids.</p>
+    <p>Le plateau représente les connexions et leur correction. Ce n’est pas une simulation physique.</p>
+    <p>Les mesures portent sur le répertoire entraîné. Les règles de composition de la calculatrice sont fournies par le programme.</p>
+    <button class="secondary-button dialog-close">Fermer</button>
+  </dialog>
+
+  <dialog id="settings-dialog">
+    <div class="dialog-heading"><h2>Partie</h2><button class="icon-button dialog-close" aria-label="Fermer">×</button></div>
+    <p>La progression est conservée dans ce navigateur. Le distributeur fonctionne tant que l’onglet est visible.</p>
+    <p class="save-status" id="save-status">Progression sauvegardée ici</p>
+    <label class="setting-row"><span>Sons</span><input type="checkbox" id="sound-enabled"></label>
+    <label class="setting-row"><span>Réduire les animations</span><input type="checkbox" id="motion-reduced"></label>
+    <div class="save-actions"><button class="secondary-button" id="export-save">Exporter</button><button class="secondary-button" id="import-save">Importer</button><input id="save-file" type="file" accept="application/json,.json" hidden></div>
+    <div class="reset-section"><button class="danger-button" id="reset-game">Recommencer</button></div>
+    <p class="settings-version">Fakir · version 2</p>
+  </dialog>
+
+  <dialog id="reset-dialog">
+    <div class="dialog-heading"><h2>Recommencer ?</h2></div>
+    <p>La progression et les poids appris seront effacés. Tu peux d’abord exporter la partie.</p>
+    <div class="save-actions"><button class="secondary-button dialog-close">Annuler</button><button id="confirm-reset" class="danger-button">Effacer et recommencer</button></div>
+  </dialog>
+
+  <noscript><p class="noscript">JavaScript est nécessaire pour entraîner la machine.</p></noscript>
+  <script>
+(() => {
+'use strict';
+const __fakirBundleModules = Object.create(null);
+
+// js/learning.js
+__fakirBundleModules["js/learning.js"] = (() => {
+/**
+ * Fakir's small, genuinely trainable arithmetic networks.
+ *
+ * Each operation owns a separate 2 → 12 → 12 → 1 MLP. Hidden layers use tanh;
+ * the output is linear. `predict` only uses inputs and learned parameters.
+ * Arithmetic answer keys are confined to the training and evaluation paths.
+ * No packages, network access or DOM are needed.
+ */
+
+const OPERATIONS = Object.freeze(['add', 'sub', 'mul', 'div']);
+const NETWORK_SIZES = Object.freeze([2, 12, 12, 1]);
+const STATE_VERSION = 1;
+const DEFAULT_SEED = 0xFA41C;
+const UINT_MAX = 0xFFFFFFFF;
+const CONFIG = Object.freeze({
+  add: Object.freeze({ offset: 9, scale: 9, tolerance: 0.5, salt: 0xA1D1 }),
+  sub: Object.freeze({ offset: 0, scale: 9, tolerance: 0.5, salt: 0x5AB1 }),
+  mul: Object.freeze({ offset: 40.5, scale: 40.5, tolerance: 0.5, salt: 0xAA17 }),
+  div: Object.freeze({ offset: 4.5, scale: 4.5, tolerance: 0.15, salt: 0xD171 }),
+});
+
+const copy = (value) => JSON.parse(JSON.stringify(value));
+const zerosLike = (value) => Array.isArray(value) ? value.map(zerosLike) : 0;
+
+function assertOperation(type) {
+  if (!OPERATIONS.includes(type)) throw new RangeError(`Unknown operation: ${type}`);
+}
+
+function assertFinite(value, label) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new TypeError(`${label} must be a finite number`);
+  }
+}
+
+function assertTrainingInputs(type, a, b) {
+  assertFinite(a, 'a');
+  assertFinite(b, 'b');
+  if (!Number.isInteger(a) || !Number.isInteger(b) || a < 0 || a > 9 || b < 0 || b > 9) {
+    throw new RangeError('Training examples must be integer digits from 0 to 9');
+  }
+  if (type === 'div' && b === 0) throw new RangeError('Division by zero is not a training example');
+}
+
+// This is an answer key, never a prediction rule.
+function answerKey(type, a, b) {
+  if (type === 'add') return a + b;
+  if (type === 'sub') return a - b;
+  if (type === 'mul') return a * b;
+  return a / b;
+}
+
+// Mulberry32, with all mutable state held in the model for exact saved replays.
+function random(model) {
+  model.rngState = (model.rngState + 0x6D2B79F5) >>> 0;
+  let t = model.rngState;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+
+function createModel(seed) {
+  const model = { rngState: seed >>> 0, trained: 0, weights: [], biases: [] };
+  for (let l = 1; l < NETWORK_SIZES.length; l++) {
+    const fanIn = NETWORK_SIZES[l - 1];
+    const fanOut = NETWORK_SIZES[l];
+    const limit = Math.sqrt(6 / (fanIn + fanOut));
+    const outputFactor = l === NETWORK_SIZES.length - 1 ? 0.15 : 1;
+    model.weights.push(Array.from({ length: fanOut }, () =>
+      Array.from({ length: fanIn }, () => (random(model) * 2 - 1) * limit * outputFactor)));
+    model.biases.push(Array(fanOut).fill(0));
+  }
+  model.optimizer = {
+    step: 0,
+    mw: zerosLike(model.weights), vw: zerosLike(model.weights),
+    mb: zerosLike(model.biases), vb: zerosLike(model.biases),
+  };
+  return model;
+}
+
+/** Inference only: there is deliberately no operation or target argument. */
+function forward(model, a, b) {
+  const activations = [[a / 4.5 - 1, b / 4.5 - 1]];
+  const preActivations = [];
+  for (let l = 0; l < model.weights.length; l++) {
+    const input = activations[l];
+    const z = model.weights[l].map((row, j) => {
+      let sum = model.biases[l][j];
+      for (let i = 0; i < input.length; i++) sum += row[i] * input[i];
+      return sum;
+    });
+    preActivations.push(z);
+    activations.push(l === model.weights.length - 1 ? z.slice() : z.map(Math.tanh));
+  }
+  return { normalizedValue: activations.at(-1)[0], activations, preActivations };
+}
+
+function backprop(model, activations, target) {
+  const last = model.weights.length - 1;
+  const deltas = Array(model.weights.length);
+  deltas[last] = [activations.at(-1)[0] - target];
+  for (let l = last - 1; l >= 0; l--) {
+    deltas[l] = activations[l + 1].map((activation, j) => {
+      let upstream = 0;
+      for (let k = 0; k < deltas[l + 1].length; k++) {
+        upstream += model.weights[l + 1][k][j] * deltas[l + 1][k];
+      }
+      return upstream * (1 - activation * activation);
+    });
+  }
+  const weights = deltas.map((layer, l) => layer.map(delta =>
+    activations[l].map(activation => delta * activation)));
+  const biases = deltas.map(layer => layer.slice());
+  return { weights, biases, deltas };
+}
+
+function applyAdam(model, gradients) {
+  const opt = model.optimizer;
+  opt.step++;
+  // Shorter momentum makes the first repeated example visibly settle rather
+  // than oscillate past its target for a long time.
+  const beta1 = 0.5;
+  const beta2 = 0.999;
+  const b1Correction = 1 - beta1 ** opt.step;
+  const b2Correction = 1 - beta2 ** opt.step;
+  const learningRate = 0.006 / (1 + opt.step / 1500);
+  const update = (gradient, moment, variance) => {
+    // Elementwise gradient clipping; no access to arithmetic answer keys.
+    const g = Math.max(-5, Math.min(5, gradient));
+    const m = beta1 * moment + (1 - beta1) * g;
+    const v = beta2 * variance + (1 - beta2) * g * g;
+    const step = learningRate * (m / b1Correction) / (Math.sqrt(v / b2Correction) + 1e-8);
+    return [m, v, step];
+  };
+  for (let l = 0; l < model.weights.length; l++) {
+    for (let j = 0; j < model.weights[l].length; j++) {
+      for (let i = 0; i < model.weights[l][j].length; i++) {
+        const [m, v, step] = update(gradients.weights[l][j][i], opt.mw[l][j][i], opt.vw[l][j][i]);
+        opt.mw[l][j][i] = m;
+        opt.vw[l][j][i] = v;
+        model.weights[l][j][i] -= step;
+      }
+      const [m, v, step] = update(gradients.biases[l][j], opt.mb[l][j], opt.vb[l][j]);
+      opt.mb[l][j] = m;
+      opt.vb[l][j] = v;
+      model.biases[l][j] -= step;
+    }
+  }
+  return learningRate;
+}
+
+function resolveCurriculum(type, trained, options) {
+  const requested = typeof options === 'string' ? options : options?.curriculum;
+  const curriculum = requested ?? 'auto';
+  if (!['auto', 'first', 'small', 'full'].includes(curriculum)) {
+    throw new RangeError(`Unknown curriculum: ${curriculum}`);
+  }
+  if (curriculum !== 'auto') return curriculum;
+  if (type === 'add' && trained < 20) return 'first';
+  if (type === 'add' && trained < 200) return 'small';
+  return 'full';
+}
+
+function examples(type, curriculum = 'full') {
+  if (curriculum === 'first') return [[2, 3]];
+  const max = curriculum === 'small' ? 4 : 9;
+  const result = [];
+  for (let a = 0; a <= max; a++) {
+    for (let b = type === 'div' ? 1 : 0; b <= max; b++) result.push([a, b]);
+  }
+  return result;
+}
+
+function validateArray(value, shape, label, nonNegative = false) {
+  if (!Array.isArray(value) || value.length !== shape[0]) throw new TypeError(`Invalid ${label} shape`);
+  if (shape.length > 1) {
+    value.forEach((v, index) => validateArray(v, shape.slice(1), `${label}[${index}]`, nonNegative));
+  } else {
+    value.forEach((v) => {
+      assertFinite(v, label);
+      if (Math.abs(v) > 1e8 || (nonNegative && v < 0)) throw new RangeError(`Invalid ${label} value`);
+    });
+  }
+}
+
+function validateLayers(layers, isWeight, label, nonNegative = false) {
+  if (!Array.isArray(layers) || layers.length !== NETWORK_SIZES.length - 1) {
+    throw new TypeError(`Invalid ${label} layer count`);
+  }
+  layers.forEach((layer, l) => validateArray(layer,
+    isWeight ? [NETWORK_SIZES[l + 1], NETWORK_SIZES[l]] : [NETWORK_SIZES[l + 1]], label, nonNegative));
+}
+
+function validateCounter(value, label, max = Number.MAX_SAFE_INTEGER) {
+  if (!Number.isSafeInteger(value) || value < 0 || value > max) throw new TypeError(`Invalid ${label}`);
+}
+
+function validateState(state) {
+  if (!state || state.version !== STATE_VERSION) throw new TypeError('Unsupported learning save version');
+  if (!Array.isArray(state.architecture) || state.architecture.join(',') !== NETWORK_SIZES.join(',')) {
+    throw new TypeError('Saved network architecture does not match');
+  }
+  validateCounter(state.seed, 'seed', UINT_MAX);
+  if (!state.models || typeof state.models !== 'object') throw new TypeError('Missing saved networks');
+  for (const type of OPERATIONS) {
+    const model = state.models[type];
+    if (!model || !model.optimizer) throw new TypeError(`Missing ${type} network`);
+    validateCounter(model.rngState, 'random state', UINT_MAX);
+    validateCounter(model.trained, 'trained examples');
+    validateCounter(model.optimizer.step, 'optimizer step');
+    if (model.optimizer.step !== model.trained) throw new TypeError('Training counters disagree');
+    validateLayers(model.weights, true, `${type} weights`);
+    validateLayers(model.biases, false, `${type} biases`);
+    validateLayers(model.optimizer.mw, true, `${type} first moments`);
+    validateLayers(model.optimizer.vw, true, `${type} second moments`, true);
+    validateLayers(model.optimizer.mb, false, `${type} bias first moments`);
+    validateLayers(model.optimizer.vb, false, `${type} bias second moments`, true);
+  }
+}
+
+class LearningLab {
+  constructor({ seed = DEFAULT_SEED } = {}) {
+    validateCounter(seed, 'seed', UINT_MAX);
+    this.seed = seed;
+    this.models = Object.fromEntries(OPERATIONS.map(type => [type, createModel((seed ^ CONFIG[type].salt) >>> 0)]));
+  }
+
+  /** Returns a freely varying model output; decimal results are never rounded. */
+  predict(type, a, b) {
+    assertOperation(type);
+    assertFinite(a, 'a');
+    assertFinite(b, 'b');
+    const result = forward(this.models[type], a, b);
+    const { offset, scale } = CONFIG[type];
+    return { ...result, value: offset + result.normalizedValue * scale };
+  }
+
+  /** One example, one Adam update, and before/after evidence for the animation. */
+  trainSample(type, a, b) {
+    assertOperation(type);
+    assertTrainingInputs(type, a, b);
+    const model = this.models[type];
+    const target = answerKey(type, a, b);
+    const before = this.predict(type, a, b);
+    const { offset, scale } = CONFIG[type];
+    const gradients = backprop(model, before.activations, (target - offset) / scale);
+    const learningRate = applyAdam(model, gradients);
+    model.trained++;
+    const after = this.predict(type, a, b);
+    return {
+      type, a, b, target, before: before.value, after: after.value,
+      errorBefore: Math.abs(target - before.value), errorAfter: Math.abs(target - after.value),
+      gradients, activations: after.activations, beforeActivations: before.activations,
+      trained: model.trained, learningRate,
+    };
+  }
+
+  /** Exact count of presented examples. Large counts should be chunked by the UI. */
+  train(type, count = 1, options = {}) {
+    assertOperation(type);
+    validateCounter(count, 'example count', 1_000_000);
+    const model = this.models[type];
+    let last = null;
+    for (let i = 0; i < count; i++) {
+      const curriculum = resolveCurriculum(type, model.trained, options);
+      let a = 2;
+      let b = 3;
+      if (curriculum !== 'first') {
+        const size = curriculum === 'small' ? 5 : 10;
+        a = Math.floor(random(model) * size);
+        b = type === 'div' ? 1 + Math.floor(random(model) * (size - 1)) : Math.floor(random(model) * size);
+      }
+      last = { ...this.trainSample(type, a, b), curriculum };
+    }
+    return last;
+  }
+
+  /** Exhaustive measurement on the requested digit grid, without training. */
+  evaluate(type, options = {}) {
+    assertOperation(type);
+    const curriculum = (typeof options === 'string' ? options : options.curriculum) ?? 'full';
+    if (!['first', 'small', 'full'].includes(curriculum)) throw new RangeError('Evaluation needs a fixed curriculum');
+    const tolerance = (typeof options === 'object' ? options.tolerance : undefined) ?? CONFIG[type].tolerance;
+    assertFinite(tolerance, 'tolerance');
+    if (tolerance <= 0) throw new RangeError('Tolerance must be positive');
+    let sumError = 0;
+    let maxError = 0;
+    let correct = 0;
+    const grid = examples(type, curriculum);
+    for (const [a, b] of grid) {
+      const error = Math.abs(this.predict(type, a, b).value - answerKey(type, a, b));
+      sumError += error;
+      maxError = Math.max(maxError, error);
+      if (error <= tolerance) correct++;
+    }
+    return {
+      mae: sumError / grid.length, maxError, accuracy: correct / grid.length,
+      correct, total: grid.length, tolerance, curriculum, trained: this.models[type].trained,
+    };
+  }
+
+  /** Copies ensure renderer code cannot accidentally mutate the trained model. */
+  getNetwork(type) {
+    assertOperation(type);
+    const model = this.models[type];
+    return {
+      sizes: NETWORK_SIZES.slice(), weights: copy(model.weights), biases: copy(model.biases),
+      trained: model.trained, offset: CONFIG[type].offset, scale: CONFIG[type].scale,
+    };
+  }
+
+  exportState() {
+    const state = { version: STATE_VERSION, architecture: NETWORK_SIZES.slice(), seed: this.seed, models: this.models };
+    validateState(state);
+    return copy(state);
+  }
+
+  /** Validation completes before touching the current state, so failure is atomic. */
+  restore(state) {
+    const candidate = typeof state === 'string' ? JSON.parse(state) : state;
+    validateState(candidate);
+    const clean = copy(candidate);
+    this.seed = clean.seed;
+    this.models = Object.fromEntries(OPERATIONS.map(type => [type, clean.models[type]]));
+    return this;
+  }
+
+  static fromState(state) {
+    return new LearningLab().restore(state);
+  }
+}
+
+return Object.freeze({ OPERATIONS, NETWORK_SIZES, LearningLab });
+})();
+
+// js/calculator.js
+__fakirBundleModules["js/calculator.js"] = (() => {
+/**
+ * Compose learned digit operations without consulting an arithmetic answer.
+ *
+ * The host supplies parsing, signs, place values, comparisons, rounding and the
+ * carry/borrow rules. Only lab.predict(type, digitA, digitB).value supplies the
+ * elementary sum, difference, product or division estimate. These composition
+ * rules are provided to the machine; this module does not claim it learned them.
+ *
+ * Inputs: two signed operands, at most three integer and two fractional digits.
+ * Division uses learned long division with six fractional digits internally,
+ * then rounds to four places. A learned one-digit division suggests a quotient
+ * when applicable; learned products check it and learned subtraction updates
+ * the remainder. Poor networks can give incorrect results. A negative decoded
+ * remainder is explicitly bounded at zero so calculation can continue; invalid
+ * or excessively large predictions raise a French error instead of looping.
+ *
+ * `estimate` retains unrounded primitive estimates for +, − and ×, without
+ * counting carries twice. For ÷ it is the long-division estimate before the
+ * final four-place rounding. `result` is the value decoded for use in subsequent
+ * arithmetic; it is never replaced by a native calculation of the expression.
+ * `uses` lists the network IDs actually consulted, in first-use order.
+ */
+
+const LABELS = { add: 'addition', sub: 'soustraction', mul: 'multiplication', div: 'division' };
+const SYMBOLS = { add: '+', sub: '−', mul: '×', div: '÷' };
+const TYPES = { '+': 'add', '-': 'sub', '−': 'sub', '×': 'mul', x: 'mul', X: 'mul', '*': 'mul', '÷': 'div', '/': 'div' };
+const NUMBER = '[+\\-−]?(?:\\d{1,3}(?:[.,]\\d{1,2})?|[.,]\\d{1,2})';
+const EXPRESSION = new RegExp(`^\\s*(${NUMBER})\\s*([+\\-−×xX*÷/])\\s*(${NUMBER})\\s*$`);
+const MAX_INTEGER = 1e12;
+const MAX_PREDICTION = 1e4;
+const FRACTION_DIGITS = 6;
+const TRACE_LIMIT = 64;
+
+const cleanZero = value => Object.is(value, -0) ? 0 : value;
+const format = value => cleanZero(value).toLocaleString('fr-FR', {
+  useGrouping: false, minimumFractionDigits: 0, maximumFractionDigits: 6,
+});
+
+function operand(text) {
+  const normalized = text.replace('−', '-').replace(',', '.');
+  const negative = normalized.startsWith('-');
+  const unsigned = normalized.replace(/^[+-]/, '');
+  const [whole = '0', fraction = ''] = unsigned.split('.');
+  const coefficient = Number(`${whole || '0'}${fraction}`);
+  return { sign: negative ? -1 : 1, coefficient, scale: fraction.length };
+}
+
+function integer(value) {
+  if (!Number.isSafeInteger(value) || Math.abs(value) > MAX_INTEGER) {
+    throw new Error('Les estimations du réseau dépassent la plage de composition. Entraîne encore la machine.');
+  }
+  return cleanZero(value);
+}
+
+function finite(value) {
+  if (!Number.isFinite(value) || Math.abs(value) > MAX_INTEGER * 100) {
+    throw new Error('Le réseau ne produit pas encore une estimation exploitable.');
+  }
+  return cleanZero(value);
+}
+
+function context(lab, unlockedTypes) {
+  if (!lab || typeof lab.predict !== 'function') {
+    throw new Error('Le moteur d’apprentissage est indisponible.');
+  }
+  const unlocked = new Set(unlockedTypes);
+  const trace = [];
+  const uses = new Set();
+  let omitted = false;
+  return {
+    trace, uses,
+    require(type) {
+      if (!unlocked.has(type)) {
+        throw new Error(`L’opération « ${LABELS[type]} » n’est pas encore débloquée.`);
+      }
+    },
+    note(message) {
+      if (trace.length < TRACE_LIMIT) trace.push(message);
+      else if (!omitted) {
+        trace.push('Les étapes suivantes emploient les mêmes règles de composition.');
+        omitted = true;
+      }
+    },
+    predict(type, a, b) {
+      this.require(type);
+      if (!Number.isInteger(a) || !Number.isInteger(b) || a < 0 || a > 9 || b < 0 || b > 9 || (type === 'div' && b === 0)) {
+        throw new Error('Un sous-calcul sort de la table des chiffres.');
+      }
+      const value = lab.predict(type, a, b)?.value;
+      if (typeof value !== 'number' || !Number.isFinite(value) || Math.abs(value) > MAX_PREDICTION) {
+        throw new Error(`Le réseau de ${LABELS[type]} ne fournit pas une estimation exploitable.`);
+      }
+      uses.add(type);
+      return value;
+    },
+  };
+}
+
+/** Carry is a positional transfer: do not add it again to the raw estimate. */
+function digitOperation(a, b, type, ctx, details = true) {
+  integer(a); integer(b);
+  const left = String(a).split('').reverse().map(Number);
+  const right = String(b).split('').reverse().map(Number);
+  const length = Math.max(left.length, right.length);
+  let carry = 0;
+  let result = 0;
+  let estimate = 0;
+  for (let index = 0; index < length; index++) {
+    const da = left[index] || 0;
+    const db = right[index] || 0;
+    const raw = ctx.predict(type, da, db);
+    const incoming = carry;
+    const rounded = Math.round(raw + incoming);
+    const digit = ((rounded % 10) + 10) % 10;
+    carry = Math.floor(rounded / 10);
+    const place = 10 ** index;
+    estimate += raw * place;
+    result += digit * place;
+    if (details) {
+      const transfer = type === 'sub'
+        ? `emprunt entrant ${-incoming}, emprunt sortant ${-carry}`
+        : `retenue entrante ${incoming}, retenue sortante ${carry}`;
+      ctx.note(`Position 10^${index} : ${da} ${SYMBOLS[type]} ${db} ≈ ${format(raw)} ; ${transfer} ; écrire ${digit}.`);
+    }
+  }
+  result += carry * 10 ** length;
+  return { result: integer(result), estimate: finite(estimate) };
+}
+
+function signedAdd(a, b, ctx, details = true) {
+  integer(a); integer(b);
+  const signA = a < 0 ? -1 : 1;
+  const signB = b < 0 ? -1 : 1;
+  const absA = Math.abs(a);
+  const absB = Math.abs(b);
+  let out;
+  let sign;
+  if (signA === signB) {
+    out = digitOperation(absA, absB, 'add', ctx, details);
+    sign = signA;
+  } else if (absA >= absB) {
+    out = digitOperation(absA, absB, 'sub', ctx, details);
+    sign = signA;
+  } else {
+    out = digitOperation(absB, absA, 'sub', ctx, details);
+    sign = signB;
+  }
+  return { result: cleanZero(sign * out.result), estimate: cleanZero(sign * out.estimate) };
+}
+
+function signedSubtract(a, b, ctx, details = true) {
+  integer(a); integer(b);
+  const signA = a < 0 ? -1 : 1;
+  const signB = b < 0 ? -1 : 1;
+  const absA = Math.abs(a);
+  const absB = Math.abs(b);
+  let out;
+  let sign = signA;
+  if (signA !== signB) {
+    out = digitOperation(absA, absB, 'add', ctx, details);
+  } else {
+    out = digitOperation(Math.max(absA, absB), Math.min(absA, absB), 'sub', ctx, details);
+    if (absB > absA) sign = -sign;
+  }
+  return { result: cleanZero(sign * out.result), estimate: cleanZero(sign * out.estimate) };
+}
+
+function multiplyByDigit(a, digit, ctx, details = true) {
+  integer(a);
+  const digits = String(a).split('').reverse().map(Number);
+  let carry = 0;
+  let result = 0;
+  let estimate = 0;
+  for (let index = 0; index < digits.length; index++) {
+    const raw = ctx.predict('mul', digits[index], digit);
+    const incoming = carry;
+    const rounded = Math.round(raw + incoming);
+    const written = ((rounded % 10) + 10) % 10;
+    carry = Math.floor(rounded / 10);
+    const place = 10 ** index;
+    estimate += raw * place;
+    result += written * place;
+    if (details) {
+      ctx.note(`Position 10^${index} : ${digits[index]} × ${digit} ≈ ${format(raw)} ; retenue entrante ${incoming} ; écrire ${written}, retenir ${carry}.`);
+    }
+  }
+  result += carry * 10 ** digits.length;
+  return { result: integer(result), estimate: finite(estimate) };
+}
+
+function multiply(a, b, ctx) {
+  const digits = String(b).split('').reverse().map(Number);
+  let accumulated = null;
+  for (let index = 0; index < digits.length; index++) {
+    const partial = multiplyByDigit(a, digits[index], ctx);
+    const shift = 10 ** index;
+    partial.result = integer(partial.result * shift);
+    partial.estimate = finite(partial.estimate * shift);
+    ctx.note(`Produit partiel par ${digits[index]}, décalé de ${index} position(s) : ≈ ${format(partial.estimate)} ; valeur composée ${partial.result}.`);
+    if (accumulated === null) {
+      accumulated = partial;
+    } else {
+      const merged = signedAdd(accumulated.result, partial.result, ctx);
+      // Preserve the unrounded residual of each partial, then the learned
+      // addition's own error. Incoming carries are absent from these residuals.
+      merged.estimate = finite(merged.estimate
+        + (accumulated.estimate - accumulated.result)
+        + (partial.estimate - partial.result));
+      ctx.note(`Addition apprise des produits partiels : ≈ ${format(merged.estimate)} ; valeur composée ${merged.result}.`);
+      accumulated = merged;
+    }
+  }
+  return accumulated;
+}
+
+function divide(a, b, ctx) {
+  integer(a); integer(b);
+  const products = new Map();
+  const productFor = q => {
+    if (!products.has(q)) products.set(q, multiplyByDigit(b, q, ctx, false));
+    return products.get(q);
+  };
+  let remainder = 0;
+  const wholeDigits = [];
+  const fractionDigits = [];
+  ctx.note(`Division posée : dividende ${a}, diviseur ${b} après alignement des décimales.`);
+
+  function step(incomingDigit, place) {
+    remainder = integer(remainder * 10 + incomingDigit);
+    const before = remainder;
+    let q = 0;
+    let guess = null;
+    if (before <= 9 && b <= 9) {
+      guess = ctx.predict('div', before, b);
+      q = Math.max(0, Math.min(9, Math.floor(guess)));
+    }
+    let product = productFor(q);
+    // These loops always terminate: q remains an integer between zero and nine.
+    while (q > 0 && product.result > before) {
+      q--;
+      product = productFor(q);
+    }
+    while (q < 9) {
+      const next = productFor(q + 1);
+      if (next.result > before) break;
+      q++;
+      product = next;
+    }
+    const difference = signedSubtract(before, product.result, ctx, false);
+    remainder = integer(Math.max(0, difference.result));
+    const suggested = guess === null ? '' : ` ÷ suggère ${format(guess)} ;`;
+    const bounded = difference.result < 0 ? ' Reste décodé négatif : ramené à 0 pour poursuivre.' : '';
+    ctx.note(`${place} : abaisser ${incomingDigit} → ${before} ;${suggested} écrire ${q}, produit appris ≈ ${format(product.estimate)}, reste appris ≈ ${format(difference.estimate)} (retenu ${remainder}).${bounded}`);
+    return q;
+  }
+
+  for (const digit of String(a)) wholeDigits.push(step(Number(digit), 'Partie entière'));
+  for (let index = 0; index < FRACTION_DIGITS; index++) {
+    fractionDigits.push(step(0, `Décimale ${index + 1}`));
+  }
+  let estimate = Number(`${wholeDigits.join('')}.${fractionDigits.join('')}`);
+  if (remainder <= 9 && b <= 9) {
+    const tail = ctx.predict('div', remainder, b);
+    estimate += tail * 10 ** -FRACTION_DIGITS;
+    ctx.note(`Au-delà des six décimales : reste ${remainder} ÷ ${b} ≈ ${format(tail)}, replacé à 10^−${FRACTION_DIGITS}.`);
+  }
+  estimate = finite(estimate);
+  const result = cleanZero(Math.round(estimate * 1e4 + 1e-9) / 1e4);
+  ctx.note(`Estimation de division ≈ ${format(estimate)} ; arrondi à quatre décimales : ${format(result)}.`);
+  return { estimate, result };
+}
+
+function evaluateExpression(expression, lab, unlockedTypes = ['add', 'sub', 'mul', 'div']) {
+  if (typeof expression !== 'string' || expression.length > 64) {
+    throw new Error('Saisis une opération entre deux nombres, avec au plus trois chiffres et deux décimales chacun.');
+  }
+  const match = EXPRESSION.exec(expression);
+  if (!match) {
+    throw new Error('Saisis deux nombres signés et une opération (+, −, × ou ÷), avec au plus trois chiffres et deux décimales par nombre.');
+  }
+  const left = operand(match[1]);
+  const right = operand(match[3]);
+  const type = TYPES[match[2]];
+  if (type === 'div' && right.coefficient === 0) {
+    throw new Error('La division par zéro est impossible.');
+  }
+  const ctx = context(lab, unlockedTypes);
+  ctx.require(type);
+  let out;
+  let scale;
+  if (type === 'add' || type === 'sub') {
+    scale = Math.max(left.scale, right.scale);
+    const a = left.sign * left.coefficient * 10 ** (scale - left.scale);
+    const b = right.sign * right.coefficient * 10 ** (scale - right.scale);
+    ctx.note(`Décimales alignées sur ${scale} position(s) ; retenues et emprunts transmis de droite à gauche.`);
+    out = type === 'sub' ? signedSubtract(a, b, ctx) : signedAdd(a, b, ctx);
+  } else if (type === 'mul') {
+    scale = left.scale + right.scale;
+    out = multiply(left.coefficient, right.coefficient, ctx);
+    out.result *= left.sign * right.sign;
+    out.estimate *= left.sign * right.sign;
+    ctx.note(`Replacer la virgule de ${scale} position(s) et appliquer les signes.`);
+  } else {
+    const alignedScale = Math.max(left.scale, right.scale);
+    const a = left.coefficient * 10 ** (alignedScale - left.scale);
+    const b = right.coefficient * 10 ** (alignedScale - right.scale);
+    out = divide(a, b, ctx);
+    out.result *= left.sign * right.sign;
+    out.estimate *= left.sign * right.sign;
+    scale = 0;
+  }
+  return {
+    expression: `${match[1]} ${SYMBOLS[type]} ${match[3]}`,
+    type,
+    estimate: finite(out.estimate / 10 ** scale),
+    result: finite(out.result / 10 ** scale),
+    trace: ctx.trace,
+    uses: [...ctx.uses],
+  };
+}
+
+return Object.freeze({ evaluateExpression });
+})();
+
+// js/game-state.js
+__fakirBundleModules["js/game-state.js"] = (() => {
+const { LearningLab } = __fakirBundleModules["js/learning.js"];
+
+const FAMILIES = {
+  add: { label: 'Addition', symbol: '+', unlock: 0 },
+  sub: { label: 'Soustraction', symbol: '−', unlock: 3 },
+  mul: { label: 'Multiplication', symbol: '×', unlock: 4 },
+  div: { label: 'Division', symbol: '÷', unlock: 5 }
+};
+const CHAPTERS = [
+  { name: 'Le premier déclic', subtitle: 'Un calcul, un début.', title: 'Tout commence par une bille.', description: 'Elle ne connaît pas encore 2 + 3. Laisse-la essayer.', family: 'add', curriculum: 'first', min: 12, accuracy: 1, tolerance: .35, goal: 'Apprivoiser 2 + 3', detail: '12 exemples et une erreur inférieure à 0,35.', reward: 30 },
+  { name: 'Un peu de diversité', subtitle: 'Un même réseau, 25 calculs.', title: 'Un calcul ne fait pas un savoir.', description: 'Varie les exemples. Les mêmes connexions doivent apprendre à tous les relier.', family: 'add', curriculum: 'small', min: 250, accuracy: .8, tolerance: .5, goal: 'Élargir le répertoire', detail: '250 exemples et 80 % des 25 calculs à moins de 0,5 d’erreur.', reward: 100 },
+  { name: 'La première table', subtitle: 'Tous les chiffres.', title: 'Les petits nombres voient grand.', description: 'Cent additions à apprendre. Bientôt, ces briques composeront de grands calculs.', family: 'add', curriculum: 'full', min: 800, accuracy: .9, tolerance: .5, goal: 'Construire la table d’addition', detail: '800 exemples et 90 % des additions à moins de 0,5 d’erreur.', reward: 300 },
+  { name: 'Le sens inverse', subtitle: 'Apprendre à soustraire.', title: 'Et si on retirait des billes ?', description: 'Un nouveau réseau s’éveille. L’addition, elle, conserve ce qu’elle a appris.', family: 'sub', curriculum: 'full', min: 800, accuracy: .9, tolerance: .5, goal: 'Apprendre les soustractions', detail: '800 exemples et 90 % des soustractions à moins de 0,5 d’erreur.', reward: 650 },
+  { name: 'Des bonds de géant', subtitle: 'Multiplier les possibilités.', title: 'Une nouvelle façon de grandir.', description: 'Deux chiffres, des produits. Puis des produits partiels et des additions, ensemble.', family: 'mul', curriculum: 'full', min: 2400, accuracy: .85, tolerance: .5, goal: 'Apprendre les multiplications', detail: '2 400 exemples et 85 % des produits à moins de 0,5 d’erreur.', reward: 1500 },
+  { name: 'Partager le monde', subtitle: 'Composer une calculatrice.', title: 'Il reste tant à partager.', description: 'La division affine ses décimales. Ta calculatrice réunit maintenant tous ses savoirs.', family: 'div', curriculum: 'full', min: 4000, accuracy: .85, tolerance: .15, goal: 'Apprendre les divisions', detail: '4 000 exemples et 85 % des quotients à moins de 0,15 d’erreur.', reward: 3000 },
+  { name: 'La machine qui apprend', subtitle: 'L’expérience continue.', title: 'Elle a parcouru du chemin.', description: 'Les quatre opérations sont réunies. Continue à affiner ses réponses et mets-la à l’épreuve.', family: 'div', curriculum: 'full', min: 0, accuracy: 0, tolerance: .15, goal: 'Ton laboratoire reste ouvert', detail: 'Le parcours est terminé. Il reste toujours des erreurs à explorer.', reward: 0 }
+];
+const UPGRADES = [
+  { id: 'batch', name: 'Billes groupées', icon: '◌', description: 'Plusieurs exemples à chaque clic. Chaque bille entraîne vraiment le réseau.', minExamples: 8, minPhase: 0, prices: [16,55,180,580,1800,5000] },
+  { id: 'auto', name: 'Distributeur', icon: '⋮', description: 'Une cadence régulière pour apprendre pendant que tu observes.', minExamples: 12, minPhase: 0, prices: [30,100,300,900,2600,7400,18000,50000] },
+  { id: 'focus', name: 'Répétition ciblée', icon: '◎', description: 'Un exemple sur cinq revient sur les calculs qui posent le plus de difficultés.', minExamples: 0, minPhase: 2, prices: [600] }
+];
+const AUTO_RATES = [0,1,3,8,18,40,90,180,360];
+
+function defaultData() {
+  return { phase: 0, family: 'add', balance: 0, earned: 0, spent: 0, manualClicks: 0,
+    upgrades: { batch: 0, auto: 0, focus: 0 }, autoEnabled: true, selected: null,
+    preferences: { sound: false, reducedMotion: false }, histories: {}, focusCursor: 0 };
+}
+
+class GameSession {
+  constructor() { this.lab = new LearningLab(); this.data = defaultData(); this.metrics = null; this.weakCases = []; this.refreshMetrics(); }
+  get chapter() { return CHAPTERS[this.data.phase]; }
+  get total() { return Object.keys(FAMILIES).reduce((n, type) => n + this.lab.getNetwork(type).trained, 0); }
+  get clickPower() { return 2 ** this.data.upgrades.batch; }
+  get autoRate() { return this.data.autoEnabled ? AUTO_RATES[this.data.upgrades.auto] : 0; }
+  get unlocked() { return Object.keys(FAMILIES).filter(type => FAMILIES[type].unlock <= this.data.phase); }
+  get curriculum() { return this.data.family === 'add' && this.data.phase < 2 ? this.chapter.curriculum : 'full'; }
+  get scopeKey() { return `${this.data.family}:${this.curriculum}`; }
+  get trained() { return this.lab.getNetwork(this.data.family).trained; }
+  get selectedExample() { return this.data.selected || { a: 2, b: 3 }; }
+  selectFamily(type) {
+    if (!this.unlocked.includes(type)) return false;
+    this.data.family = type; this.data.selected = null; this.refreshMetrics(); return true;
+  }
+  selectExample(a,b) {
+    if (!Number.isInteger(a) || !Number.isInteger(b) || a < 0 || a > 9 || b < 0 || b > 9 || (this.data.family === 'div' && b === 0)) return false;
+    if (this.data.phase === 0 && (a !== 2 || b !== 3)) return false;
+    if (this.curriculum === 'small' && (a > 4 || b > 4)) return false;
+    this.data.selected = { a, b }; return true;
+  }
+  target(type,a,b) { return type === 'add' ? a+b : type === 'sub' ? a-b : type === 'mul' ? a*b : a/b; }
+  train(count, { manual = false } = {}) {
+    count = Math.max(0, Math.min(500, Math.floor(count)));
+    if (!count) return null;
+    if (manual) this.data.manualClicks++;
+    let last;
+    for (let i=0;i<count;i++) {
+      if (manual && this.data.selected) {
+        const {a,b} = this.data.selected;
+        last = this.lab.trainSample(this.data.family,a,b);
+      } else if (this.data.upgrades.focus && this.weakCases.length && this.trained % 5 === 0) {
+        const sample = this.weakCases[this.data.focusCursor++ % this.weakCases.length];
+        last = this.lab.trainSample(this.data.family,sample.a,sample.b);
+      } else last = this.lab.train(this.data.family,1,{curriculum:this.curriculum});
+    }
+    this.data.balance += count; this.data.earned += count;
+    return last;
+  }
+  refreshMetrics() {
+    const tolerance = this.data.phase === 0 ? .35 : (this.data.family === 'div' ? .15 : .5);
+    this.metrics = this.lab.evaluate(this.data.family,{curriculum:this.curriculum,tolerance});
+    const history = this.data.histories[this.scopeKey] ||= [];
+    if (!history.length || history.at(-1).trained !== this.trained) history.push({ trained:this.trained,mae:this.metrics.mae });
+    if (history.length > 60) history.splice(0,history.length-60);
+    if (this.data.upgrades.focus) {
+      const candidates=[];
+      const max=this.curriculum==='small'?4:9;
+      for(let a=0;a<=max;a++)for(let b=this.data.family==='div'?1:0;b<=max;b++) {
+        candidates.push({a,b,error:Math.abs(this.lab.predict(this.data.family,a,b).value-this.target(this.data.family,a,b))});
+      }
+      this.weakCases=candidates.sort((a,b)=>b.error-a.error).slice(0,10);
+    } else this.weakCases=[];
+    return this.metrics;
+  }
+  checkMilestone() {
+    if(this.data.phase>=6) return null;
+    const chapter=this.chapter;
+    const measured=this.data.family===chapter.family && this.curriculum===chapter.curriculum ? this.metrics : this.lab.evaluate(chapter.family,{curriculum:chapter.curriculum,tolerance:chapter.tolerance});
+    const trained=this.lab.getNetwork(chapter.family).trained;
+    if(trained < chapter.min || measured.accuracy + 1e-10 < chapter.accuracy) return null;
+    const previous=this.data.phase;
+    this.data.phase++; this.data.balance+=chapter.reward; this.data.earned+=chapter.reward;
+    this.data.family=this.chapter.family; this.data.selected=null;
+    this.refreshMetrics();
+    return { previous, phase:this.data.phase, reward:chapter.reward, chapter:this.chapter };
+  }
+  milestoneProgress() {
+    const chapter=this.chapter;
+    if(this.data.phase>=6) return { ratio:1,trained:this.total,accuracy:this.metrics.accuracy };
+    const measured=this.data.family===chapter.family && this.curriculum===chapter.curriculum?this.metrics:this.lab.evaluate(chapter.family,{curriculum:chapter.curriculum,tolerance:chapter.tolerance});
+    const trained=this.lab.getNetwork(chapter.family).trained;
+    return {ratio:Math.max(0,Math.min(1,trained/chapter.min,measured.accuracy/chapter.accuracy)),trained,accuracy:measured.accuracy};
+  }
+  purchase(id) {
+    const upgrade=UPGRADES.find(item=>item.id===id);
+    if(!upgrade) return false;
+    const level=this.data.upgrades[id],price=upgrade.prices[level];
+    if(price===undefined || this.total<upgrade.minExamples || this.data.phase<upgrade.minPhase || this.data.balance<price) return false;
+    this.data.balance-=price; this.data.spent+=price; this.data.upgrades[id]++;
+    if(id==='auto') this.data.autoEnabled=true;
+    if(id==='focus') this.refreshMetrics();
+    return true;
+  }
+  exportState() {
+    // Synchronize adaptive replay before taking a snapshot. Restoring the same
+    // weights must pick the same difficult cases as continuing this session.
+    this.refreshMetrics();
+    return { app:'fakir',version:2,savedAt:new Date().toISOString(),game:structuredClone(this.data),learning:this.lab.exportState() };
+  }
+  restore(payload) {
+    if(typeof payload==='string')payload=JSON.parse(payload);
+    if(!payload || payload.app!=='fakir' || payload.version!==2 || !payload.game || !payload.learning) throw new Error('Ce fichier n’est pas une progression Fakir compatible.');
+    const data=payload.game;
+    if(!Number.isInteger(data.phase)||data.phase<0||data.phase>6)throw new Error('Parcours invalide.');
+    for(const key of ['balance','earned','spent','manualClicks','focusCursor'])if(!Number.isSafeInteger(data[key])||data[key]<0)throw new Error('Compteurs invalides.');
+    if(data.earned-data.spent!==data.balance)throw new Error('Progression incohérente.');
+    if(!Object.hasOwn(FAMILIES,data.family)||FAMILIES[data.family].unlock>data.phase)throw new Error('Opération non disponible.');
+    for(const upgrade of UPGRADES)if(!Number.isInteger(data.upgrades?.[upgrade.id])||data.upgrades[upgrade.id]<0||data.upgrades[upgrade.id]>upgrade.prices.length)throw new Error('Améliorations invalides.');
+    if(typeof data.autoEnabled!=='boolean'||typeof data.preferences?.sound!=='boolean'||typeof data.preferences?.reducedMotion!=='boolean')throw new Error('Réglages invalides.');
+    const nextLab=LearningLab.fromState(payload.learning);
+    const next=defaultData();
+    for(const key of ['phase','family','balance','earned','spent','manualClicks','autoEnabled','focusCursor']) next[key]=data[key];
+    next.upgrades={...data.upgrades};next.preferences={...data.preferences};
+    if(data.histories && typeof data.histories==='object')for(const [key,list]of Object.entries(data.histories)) {
+      if(!/^(add|sub|mul|div):(first|small|full)$/.test(key)||!Array.isArray(list))continue;
+      next.histories[key]=list.slice(-60).filter(p=>p&&Number.isSafeInteger(p.trained)&&p.trained>=0&&Number.isFinite(p.mae)&&p.mae>=0).map(p=>({trained:p.trained,mae:p.mae}));
+    }
+    this.lab=nextLab;this.data=next;
+    if(data.selected && Number.isInteger(data.selected.a)&&Number.isInteger(data.selected.b))this.selectExample(data.selected.a,data.selected.b);
+    this.refreshMetrics();return this;
+  }
+}
+
+return Object.freeze({ FAMILIES, CHAPTERS, UPGRADES, AUTO_RATES, GameSession });
+})();
+
+// js/network-view.js
+__fakirBundleModules["js/network-view.js"] = (() => {
+/** A canvas view of measured network state. This module never trains or calculates answers. */
+const MINT = [40, 104, 79];
+const AMBER = [156, 99, 27];
+const TEXT = [34, 34, 34];
+const MUTED = [135, 135, 127];
+const DOMAINS = { add: [0, 18], sub: [-9, 9], mul: [0, 81], div: [0, 9] };
+const SYMBOLS = { add: '+', sub: '−', mul: '×', div: '÷' };
+const FRAME_MS = 1000 / 45;
+const AFTER_PHASE = 0.94;
+const FORWARD_WINDOWS = [[0.19, 0.39], [0.39, 0.56], [0.56, 0.68]];
+const biasAngle = value => -Math.PI / 2 + Math.atan(value * 8);
+const MONO = '"IBM Plex Mono", "SFMono-Regular", Consolas, monospace';
+const number = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2, useGrouping: false });
+const outputNumber = new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: false });
+const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
+const rgba = (color, alpha) => `rgba(${color.join(',')},${clamp(alpha)})`;
+const mix = (a, b, p) => a + (b - a) * p;
+const finite = (value) => typeof value === 'number' && Number.isFinite(value);
+const format = (value, output = false) => {
+  if (!finite(value)) return '·';
+  if (Math.abs(value) >= 10000) return value.toExponential(1).replace('.', ',');
+  return (output ? outputNumber : number).format(value).replace('-', '−');
+};
+
+class NetworkView {
+  constructor(canvas) {
+    if (!canvas?.getContext) throw new TypeError('NetworkView needs a canvas element');
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d', { alpha: true });
+    if (!this.ctx) throw new Error('A 2D canvas context is unavailable');
+    this.win = canvas.ownerDocument?.defaultView ?? globalThis;
+    this.doc = canvas.ownerDocument;
+    this.state = { network: null, prediction: null, example: null, reducedMotion: false };
+    this.width = 0;
+    this.height = 0;
+    this.dpr = 1;
+    this.active = null;
+    this.queued = null;
+    this.lastSample = null;
+    this.lastReceivedNetwork = null;
+    this.lastReceivedType = null;
+    // Optional integration hook: emitted only for an example actually shown.
+    this.onSample = null;
+    this.frame = null;
+    this.graph = null;
+    this.visible = true;
+    this.destroyed = false;
+    this.media = this.win.matchMedia?.('(prefers-reduced-motion: reduce)');
+    this.onResize = () => this.resize();
+    this.onMotion = () => { if (this.motionReduced()) this.finishImmediately(); };
+    this.onVisibility = () => {
+      if (this.doc?.hidden) this.finishImmediately();
+      else this.resize();
+    };
+    this.media?.addEventListener?.('change', this.onMotion);
+    this.doc?.addEventListener('visibilitychange', this.onVisibility);
+    this.win.addEventListener?.('resize', this.onResize, { passive: true });
+    if (this.win.ResizeObserver) {
+      this.observer = new this.win.ResizeObserver(this.onResize);
+      this.observer.observe(canvas);
+    }
+    this.resize();
+  }
+
+  /** An authoritative state change, for initial loading, selecting a task or settings. */
+  setState(next = {}) {
+    if (this.destroyed) return;
+    const changesExample = 'network' in next || 'prediction' in next || 'example' in next;
+    if (changesExample) {
+      this.stop();
+      this.lastSample = null;
+    }
+    this.state = { ...this.state, ...next };
+    if (changesExample) {
+      this.lastReceivedNetwork = this.state.network;
+      this.lastReceivedType = this.state.example?.type;
+    }
+    if (this.motionReduced()) this.finishImmediately();
+    this.graph = null;
+    this.draw();
+    this.updateAccessibleLabel();
+  }
+
+  /** Complete the current cycle; coalesce frequent training calls into one latest next cycle. */
+  animate(sample, network) {
+    if (this.destroyed || !sample || !network) return;
+    const beforeNetwork = this.lastReceivedType === sample.type ? this.lastReceivedNetwork : null;
+    const item = { sample, network, beforeNetwork };
+    this.lastReceivedNetwork = network;
+    this.lastReceivedType = sample.type;
+    if (this.motionReduced() || !this.visible || this.doc?.hidden) {
+      this.stop();
+      this.commit(item);
+      this.draw();
+      this.notifySample(sample, 'after');
+      return;
+    }
+    if (this.active) this.queued = item;
+    else this.start(item);
+  }
+
+  motionReduced() { return Boolean(this.state.reducedMotion || this.media?.matches); }
+
+  stop() {
+    if (this.frame !== null) this.win.cancelAnimationFrame(this.frame);
+    this.frame = null;
+    this.active = null;
+    this.queued = null;
+  }
+
+  finishImmediately() {
+    const latest = this.queued ?? this.active;
+    const notify = latest && !latest.afterNotified;
+    this.stop();
+    if (latest) this.commit(latest);
+    this.draw();
+    if (notify) this.notifySample(latest.sample, 'after');
+  }
+
+  notifySample(sample, phase) {
+    this.updateAccessibleLabel(phase === 'before' ? sample.before : sample.after);
+    if (typeof this.onSample === 'function') this.onSample(sample, phase);
+  }
+
+  commit({ sample, network }) {
+    this.state.network = network;
+    this.state.prediction = {
+      value: sample.after,
+      activations: sample.activations,
+      normalizedValue: sample.activations?.at(-1)?.[0],
+    };
+    this.state.example = { type: sample.type, a: sample.a, b: sample.b, target: sample.target };
+    this.lastSample = sample;
+    this.graph = null;
+    this.updateAccessibleLabel();
+  }
+
+  start(item) {
+    this.commit(item);
+    this.active = {
+      ...item, started: this.win.performance.now(), progress: 0, lastDraw: -Infinity,
+      afterNotified: false, duration: item.sample.trained <= 25 ? 1500 : 1100,
+    };
+    const startedCycle = this.active;
+    this.prepareGraph();
+    this.prepareSignals();
+    this.draw(0);
+    this.notifySample(item.sample, 'before');
+    if (this.active !== startedCycle || this.destroyed) return;
+    const tick = (now) => {
+      this.frame = null;
+      if (!this.active || this.destroyed) return;
+      const cycle = this.active;
+      const progress = clamp((now - cycle.started) / cycle.duration);
+      cycle.progress = progress;
+      if (now - cycle.lastDraw >= FRAME_MS || progress === 1) {
+        this.draw(progress);
+        cycle.lastDraw = now;
+      }
+      if (this.active !== cycle || this.destroyed) return;
+      if (progress === 1) {
+        const next = this.queued;
+        this.active = null;
+        this.queued = null;
+        this.draw();
+        if (next) this.start(next);
+      } else {
+        this.frame = this.win.requestAnimationFrame(tick);
+      }
+    };
+    this.frame = this.win.requestAnimationFrame(tick);
+  }
+
+  resize() {
+    if (this.destroyed) return;
+    const rect = this.canvas.getBoundingClientRect();
+    this.visible = rect.width > 0 && rect.height > 0;
+    if (!this.visible) { this.finishImmediately(); return; }
+    const dpr = Math.max(1, Math.min(3, this.win.devicePixelRatio || 1));
+    if (this.width !== rect.width || this.height !== rect.height || this.dpr !== dpr) {
+      this.width = rect.width;
+      this.height = rect.height;
+      this.dpr = dpr;
+      this.canvas.width = Math.round(rect.width * dpr);
+      this.canvas.height = Math.round(rect.height * dpr);
+      this.graph = null;
+    }
+    this.draw(this.active?.progress);
+  }
+
+  prepareGraph() {
+    const network = this.state.network;
+    if (!network || this.graph?.network === network) return;
+    const sizes = network.sizes;
+    if (!Array.isArray(sizes) || sizes.length !== 4) return;
+    const left = Math.max(31, this.width * 0.075);
+    const right = this.width - Math.max(24, this.width * 0.065);
+    const railA = this.height * 0.1;
+    const railB = this.height * 0.235;
+    const example = this.state.example ?? {};
+    const a = finite(example.a) ? example.a : 0;
+    const b = finite(example.b) ? example.b : 0;
+    const inputMin = Math.min(0, a, b);
+    const inputMax = Math.max(9, a, b);
+    const inputX = value => mix(left, right, (value - inputMin) / (inputMax - inputMin));
+    const rows = [railA, this.height * 0.435, this.height * 0.645, this.height * 0.82];
+    const nodes = sizes.map((count, layer) => Array.from({ length: count }, (_, index) => {
+      const y = layer === 0 ? (index === 0 ? railA : railB) : rows[layer];
+      const x = layer === 0 ? inputX(index === 0 ? a : b)
+        : count === 1 ? this.width / 2 : mix(left, right, index / (count - 1));
+      return { x, y, layer, index };
+    }));
+    let maxWeight = 0;
+    const layers = network.weights.map((matrix, layer) => {
+      const edges = [];
+      matrix.forEach((row, destination) => row.forEach((weight, source) => {
+        if (!finite(weight) || !nodes[layer]?.[source] || !nodes[layer + 1]?.[destination]) return;
+        maxWeight = Math.max(maxWeight, Math.abs(weight));
+        edges.push({ layer, source, destination, weight, from: nodes[layer][source], to: nodes[layer + 1][destination] });
+      }));
+      return edges;
+    });
+    for (const layer of layers) for (const edge of layer) {
+      edge.strength = maxWeight ? Math.sqrt(Math.abs(edge.weight) / maxWeight) : 0;
+    }
+    this.graph = { network, nodes, layers, maxWeight, left, right, railA, railB, inputX };
+    if (this.active) this.prepareSignals();
+  }
+
+  prepareSignals() {
+    if (!this.active || !this.graph) return;
+    const sample = this.active.sample;
+    const activations = sample.beforeActivations ?? sample.activations ?? [];
+    const exactBefore = this.active.beforeNetwork?.trained === sample.trained - 1;
+    const beforeWeights = exactBefore ? this.active.beforeNetwork.weights : null;
+    const allGradients = sample.gradients?.weights?.flat(2).filter(finite) ?? [];
+    const gradientMax = Math.max(0, ...allGradients.map(Math.abs));
+    const gradientLevel = Math.min(1, Math.sqrt(gradientMax) * 3);
+    this.active.forward = this.graph.layers.map((edges, layer) => {
+      const selected = [];
+      for (let destination = 0; destination < this.graph.nodes[layer + 1].length; destination++) {
+        const incoming = edges.filter(edge => edge.destination === destination).map(edge => ({
+          ...edge,
+          signalWeight: beforeWeights?.[layer]?.[edge.destination]?.[edge.source] ?? edge.weight,
+          // A pre-update contribution is known only with the matching snapshot.
+          // For coalesced batches, display the actual source activation instead
+          // of manufacturing a contribution from mismatched parameter states.
+          signal: beforeWeights
+            ? Math.abs(beforeWeights[layer][edge.destination][edge.source] * (activations[layer]?.[edge.source] ?? 0))
+            : Math.abs(activations[layer]?.[edge.source] ?? 0),
+        })).filter(edge => edge.signal > 1e-8).sort((a, b) => b.signal - a.signal);
+        selected.push(...incoming.slice(0, layer === 2 ? 6 : 2));
+      }
+      return selected;
+    });
+    this.active.backward = this.graph.layers.map((edges) => edges.map(edge => {
+      const gradient = sample.gradients?.weights?.[edge.layer]?.[edge.destination]?.[edge.source] ?? 0;
+      return { ...edge, signal: gradientMax ? Math.sqrt(Math.abs(gradient) / gradientMax) * gradientLevel : 0 };
+    }).filter(edge => edge.signal > 0.005).sort((a, b) => b.signal - a.signal).slice(0, 24));
+    const deltas = sample.gradients?.deltas?.flat().filter(finite) ?? [];
+    this.active.maxDelta = Math.max(0, ...deltas.map(Math.abs));
+    this.active.gradientLevel = gradientLevel;
+  }
+
+  draw(progress = this.active?.progress) {
+    if (!this.ctx || !this.width || !this.height || !this.visible || this.destroyed) return;
+    const ctx = this.ctx;
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    ctx.clearRect(0, 0, this.width, this.height);
+    this.prepareGraph();
+    if (!this.graph) return;
+    const active = this.active;
+    const after = !active || progress >= AFTER_PHASE;
+    const prediction = active && !after
+      ? { value: active.sample.before, activations: active.sample.beforeActivations }
+      : this.state.prediction;
+    const activations = prediction?.activations ?? [];
+    const beforeWeights = active && progress < 0.74 && active.beforeNetwork?.trained === active.sample.trained - 1
+      ? active.beforeNetwork.weights : null;
+    ctx.lineCap = 'round';
+    for (const edges of this.graph.layers) for (const edge of edges) {
+      const weight = beforeWeights?.[edge.layer]?.[edge.destination]?.[edge.source] ?? edge.weight;
+      const strength = this.graph.maxWeight ? clamp(Math.sqrt(Math.abs(weight) / this.graph.maxWeight)) : 0;
+      if (strength < 1e-6) continue;
+      ctx.strokeStyle = rgba(weight >= 0 ? MINT : AMBER, 0.045 + strength * 0.19);
+      ctx.lineWidth = 0.45 + strength * 0.45;
+      ctx.beginPath();
+      ctx.moveTo(edge.from.x, edge.from.y);
+      ctx.lineTo(edge.to.x, edge.to.y);
+      ctx.stroke();
+    }
+    this.drawRails(progress);
+    if (active) this.drawFlow(progress);
+    for (const layer of this.graph.nodes) for (const node of layer) {
+      if (node.layer === 0) continue;
+      const activation = activations[node.layer]?.[node.index] ?? 0;
+      let pulse = 0;
+      let correction = 0;
+      if (active) {
+        const arrival = FORWARD_WINDOWS[node.layer - 1][1];
+        pulse = Math.max(0, 1 - Math.abs(progress - arrival) / 0.075) * Math.min(1, Math.abs(activation));
+        const returnArrival = 0.74 + (3 - node.layer) / 3 * 0.2;
+        const delta = active.sample.gradients?.deltas?.[node.layer - 1]?.[node.index] ?? 0;
+        correction = Math.max(0, 1 - Math.abs(progress - returnArrival) / 0.085)
+          * (active.maxDelta ? Math.sqrt(Math.abs(delta) / active.maxDelta) : 0) * active.gradientLevel;
+      }
+      const label = node.layer === 3 ? format(prediction?.value, true) : null;
+      this.drawNode(node, activation, label, pulse, correction, progress);
+    }
+    this.drawAxis(prediction?.value, after ? this.lastSample : null);
+    if (active && after && !active.afterNotified) {
+      active.afterNotified = true;
+      this.notifySample(active.sample, 'after');
+    }
+  }
+
+  drawRails(progress) {
+    const ctx = this.ctx;
+    const { left, right, railA, railB, inputX, nodes } = this.graph;
+    const [pointA, pointB] = nodes[0];
+    // The two positions encode A and B. The connecting segment makes their
+    // difference visible; it is not a claim of classical mechanical inference.
+    ctx.strokeStyle = rgba(MUTED, 0.38);
+    ctx.lineWidth = 0.8;
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath(); ctx.moveTo(pointA.x, railA); ctx.lineTo(pointA.x, railB); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = rgba(MINT, 0.86);
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(pointA.x, railA); ctx.lineTo(pointB.x, railB); ctx.stroke();
+    const angle = Math.atan2(railB - railA, pointB.x - pointA.x);
+    ctx.fillStyle = rgba(MINT, 0.9);
+    ctx.beginPath();
+    ctx.moveTo(pointB.x, railB);
+    ctx.lineTo(pointB.x - 7 * Math.cos(angle - 0.4), railB - 7 * Math.sin(angle - 0.4));
+    ctx.lineTo(pointB.x - 7 * Math.cos(angle + 0.4), railB - 7 * Math.sin(angle + 0.4));
+    ctx.closePath(); ctx.fill();
+    [railA, railB].forEach((y, index) => {
+      ctx.strokeStyle = rgba(TEXT, 0.38);
+      ctx.lineWidth = 0.8;
+      ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(right, y); ctx.stroke();
+      ctx.font = `400 9px ${MONO}`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      for (let digit = 0; digit <= 9; digit++) {
+        const x = inputX(digit);
+        ctx.beginPath(); ctx.moveTo(x, y - 3); ctx.lineTo(x, y + 3); ctx.stroke();
+        ctx.fillStyle = rgba(TEXT, 0.72);
+        ctx.fillText(String(digit), x, y + 8);
+      }
+      ctx.font = `600 11px ${MONO}`;
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = rgba(TEXT, 0.9);
+      ctx.fillText(index === 0 ? 'A' : 'B', 9, y);
+      const point = nodes[0][index];
+      ctx.fillStyle = '#fff'; ctx.strokeStyle = rgba(MINT, 1); ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.arc(point.x, point.y, 5.2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    });
+    if (this.active && progress <= 0.19) {
+      const t = clamp(progress / 0.19);
+      this.drawBall(mix(pointA.x, pointB.x, t), mix(railA, railB, t), 4.2, TEXT, 1);
+    }
+  }
+
+  drawBall(x, y, radius, color, opacity = 1) {
+    const ctx = this.ctx;
+    ctx.fillStyle = rgba(color, opacity);
+    ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = `rgba(255,255,255,${opacity * 0.8})`;
+    ctx.beginPath(); ctx.arc(x - radius * 0.27, y - radius * 0.32, radius * 0.24, 0, Math.PI * 2); ctx.fill();
+  }
+
+  drawNode(node, activation, label, pulse, correction, progress) {
+    const ctx = this.ctx;
+    const major = node.layer === 3;
+    const radius = major ? 12 : Math.max(7, Math.min(10, this.width / 48));
+    const activity = clamp(Math.abs(activation));
+    const color = activation < 0 ? AMBER : MINT;
+    const bias = this.state.network.biases?.[node.layer - 1]?.[node.index] ?? 0;
+    const oldBias = this.active?.beforeNetwork?.biases?.[node.layer - 1]?.[node.index];
+    const newAngle = biasAngle(bias);
+    const oldAngle = finite(oldBias) ? biasAngle(oldBias) : newAngle;
+    const correctionProgress = this.active ? clamp((progress - 0.74) / 0.2) : 1;
+    const angle = mix(oldAngle, newAngle, correctionProgress);
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = rgba(TEXT, 0.6);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = rgba(color, 0.04 + activity * 0.14 + pulse * 0.08);
+    ctx.beginPath(); ctx.arc(node.x, node.y, radius - 1, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = rgba(color, 0.55 + pulse * 0.3);
+    ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(node.x, node.y, radius + 2, -Math.PI / 2, -Math.PI / 2 + activity * Math.PI * 2); ctx.stroke();
+    // Every dial has the same fixed, monotonic scale: atan(8 × actual bias).
+    // The ghost pointer and correction arc use a real earlier snapshot only.
+    if (finite(oldBias) && Math.abs(newAngle - oldAngle) > 0.0001 && correctionProgress > 0) {
+      ctx.strokeStyle = rgba(MUTED, 0.6); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(node.x, node.y);
+      ctx.lineTo(node.x + Math.cos(oldAngle) * radius * 0.75, node.y + Math.sin(oldAngle) * radius * 0.75); ctx.stroke();
+      ctx.strokeStyle = rgba(AMBER, 0.9); ctx.lineWidth = 1.8;
+      ctx.beginPath(); ctx.arc(node.x, node.y, radius + 4, oldAngle, angle, angle < oldAngle); ctx.stroke();
+      this.drawBall(node.x + Math.cos(angle) * (radius + 4), node.y + Math.sin(angle) * (radius + 4), 1.5, AMBER, 0.9);
+    }
+    ctx.strokeStyle = rgba(TEXT, 0.95); ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.moveTo(node.x, node.y);
+    ctx.lineTo(node.x + Math.cos(angle) * radius * 0.75, node.y + Math.sin(angle) * radius * 0.75); ctx.stroke();
+    ctx.fillStyle = rgba(TEXT, 0.95);
+    ctx.beginPath(); ctx.arc(node.x, node.y, 1.7, 0, Math.PI * 2); ctx.fill();
+    if (pulse > 0.02) this.drawBall(node.x, node.y - radius - 4 - pulse * 5, 1.6 + activity * 1.6, color, 0.75);
+    if (correction > 0.01) {
+      ctx.strokeStyle = rgba(AMBER, correction * 0.9); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(node.x, node.y, radius + 5 + correction * 3, 0, Math.PI * 2); ctx.stroke();
+    }
+    if (major) {
+      ctx.fillStyle = rgba(TEXT, 0.98); ctx.font = `400 12px ${MONO}`;
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText(`≈ ${label}`, node.x + 23, node.y);
+    }
+  }
+
+  drawFlow(progress) {
+    const active = this.active;
+    if (!active) return;
+    const backwards = progress >= 0.74 && progress <= 0.94;
+    const forwards = progress >= 0.19 && progress <= 0.68;
+    if (!backwards && !forwards) return;
+    const global = backwards ? (progress - 0.74) / 0.2 * 3 : 0;
+    const segment = backwards ? Math.min(2, Math.floor(global))
+      : Math.max(0, FORWARD_WINDOWS.findIndex(([start, end]) => progress >= start && progress <= end));
+    const layer = backwards ? 2 - segment : segment;
+    const [start, end] = FORWARD_WINDOWS[layer];
+    const position = backwards ? clamp(global - segment) : clamp((progress - start) / (end - start));
+    const edges = (backwards ? active.backward : active.forward)?.[layer] ?? [];
+    for (const edge of edges) {
+      const strength = backwards ? edge.signal : Math.min(1, Math.sqrt(edge.signal) * 2.3);
+      if (strength < 0.01) continue;
+      const t = backwards ? 1 - position : position;
+      const x = mix(edge.from.x, edge.to.x, t);
+      const y = mix(edge.from.y, edge.to.y, t);
+      const color = backwards ? AMBER : (edge.signalWeight ?? edge.weight) >= 0 ? MINT : AMBER;
+      const tail = clamp(t + (backwards ? 0.11 : -0.11));
+      this.ctx.strokeStyle = rgba(color, strength * 0.55);
+      this.ctx.lineWidth = 0.7 + strength;
+      this.ctx.beginPath();
+      this.ctx.moveTo(mix(edge.from.x, edge.to.x, tail), mix(edge.from.y, edge.to.y, tail));
+      this.ctx.lineTo(x, y);
+      this.ctx.stroke();
+      this.drawBall(x, y, 1.2 + strength * 1.6, color, 0.25 + strength * 0.7);
+    }
+  }
+
+  drawAxis(value, sample) {
+    if (!finite(value)) return;
+    const ctx = this.ctx;
+    const example = this.state.example ?? {};
+    const target = example.target;
+    const domain = DOMAINS[example.type] ?? [0, 18];
+    // Domain bounds give context; real outlying predictions extend the axis.
+    const values = [value, target, sample?.before, sample?.after].filter(finite);
+    let minimum = Math.min(domain[0], ...values);
+    let maximum = Math.max(domain[1], ...values);
+    const padding = (maximum - minimum || 1) * 0.04;
+    if (minimum < domain[0]) minimum -= padding;
+    if (maximum > domain[1]) maximum += padding;
+    const left = Math.max(30, this.width * 0.16);
+    const right = this.width - left;
+    const y = this.height - 24;
+    const xOf = n => mix(left, right, (n - minimum) / (maximum - minimum || 1));
+    const px = xOf(value);
+    const output = this.graph.nodes.at(-1)[0];
+    ctx.strokeStyle = rgba(MINT, 0.1);
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(output.x, output.y + 15);
+    ctx.bezierCurveTo(output.x, y - 12, px, y - 14, px, y);
+    ctx.stroke();
+    ctx.strokeStyle = rgba(MUTED, 0.3);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(left, y);
+    ctx.lineTo(right, y);
+    ctx.stroke();
+    for (const x of [left, right]) {
+      ctx.beginPath(); ctx.moveTo(x, y - 3); ctx.lineTo(x, y + 3); ctx.stroke();
+    }
+    ctx.font = `400 9px ${MONO}`;
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = rgba(MUTED, 0.75);
+    ctx.textAlign = 'left'; ctx.fillText(format(minimum), left, y + 9);
+    ctx.textAlign = 'right'; ctx.fillText(format(maximum), right, y + 9);
+    if (sample && finite(sample.before) && Math.abs(xOf(sample.before) - px) > 2) {
+      const beforeX = xOf(sample.before);
+      ctx.strokeStyle = rgba(MINT, 0.35);
+      ctx.lineWidth = 0.8;
+      ctx.setLineDash([2, 3]);
+      ctx.beginPath(); ctx.moveTo(beforeX, y - 5); ctx.lineTo(px, y - 5); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.strokeStyle = rgba(MUTED, 0.7);
+      ctx.beginPath(); ctx.arc(beforeX, y, 3, 0, Math.PI * 2); ctx.stroke();
+    }
+    if (finite(target)) {
+      const tx = xOf(target);
+      ctx.strokeStyle = rgba(AMBER, 0.38);
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(tx, y); ctx.lineTo(px, y); ctx.stroke();
+      ctx.strokeStyle = rgba(MINT, 0.9);
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(tx, y - 6); ctx.lineTo(tx, y + 6); ctx.stroke();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillStyle = rgba(MINT, 0.92);
+      const labelX = clamp(tx, left + 18, right - 18);
+      ctx.fillText(`cible ${format(target)}`, labelX, y - 10);
+    }
+    ctx.fillStyle = rgba(TEXT, 1);
+    ctx.beginPath(); ctx.arc(px, y, 3.2, 0, Math.PI * 2); ctx.fill();
+  }
+
+  updateAccessibleLabel(value = this.state.prediction?.value) {
+    const example = this.state.example;
+    if (!example || !finite(value)) return;
+    this.canvas.setAttribute('aria-label',
+      `Entrée A ${format(example.a)}, entrée B ${format(example.b)}, opération ${SYMBOLS[example.type] ?? ''}. `
+      + `Proposition ${format(value, true)}${finite(example.target) ? `, cible ${format(example.target)}` : ''}. `
+      + 'Deux rails gradués représentent les entrées. Les potards montrent les biais appris et les impulsions les signaux réels.');
+  }
+
+  destroy() {
+    this.stop();
+    this.destroyed = true;
+    this.observer?.disconnect();
+    this.media?.removeEventListener?.('change', this.onMotion);
+    this.doc?.removeEventListener('visibilitychange', this.onVisibility);
+    this.win.removeEventListener?.('resize', this.onResize);
+  }
+}
+
+return Object.freeze({ NetworkView });
+})();
+
+// js/game.js
+__fakirBundleModules["js/game.js"] = (() => {
+const { GameSession, CHAPTERS, FAMILIES, UPGRADES, AUTO_RATES } = __fakirBundleModules["js/game-state.js"];
+const { NetworkView } = __fakirBundleModules["js/network-view.js"];
+const { evaluateExpression } = __fakirBundleModules["js/calculator.js"];
+
+const $=id=>document.getElementById(id);
+const SAVE_KEY='fakir-v2-progress';
+const integer=new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0});
+const decimal=new Intl.NumberFormat('fr-FR',{minimumFractionDigits:3,maximumFractionDigits:3});
+const percent=value=>`${Math.round(value*100)} %`;
+const fmt=value=>Number.isFinite(value)?decimal.format(value):'—';
+let game=new GameSession();
+let view='machine',lastSample=null,preview={a:2,b:3},lastMeasured=0,lastUi=0,autoCredit=0,dirty=false,toastTimeout,audioContext;
+let introAnimating=false,inputControlsKey='',displayed={a:2,b:3,type:'add'};
+let storageFailed=false,reduceBySystem=matchMedia('(prefers-reduced-motion: reduce)').matches;
+try { const saved=localStorage.getItem(SAVE_KEY);if(saved)game.restore(saved); }
+catch(error) { storageFailed=true; console.warn('Fakir : progression non chargée.',error.message); }
+const networkView=new NetworkView($('network'));
+networkView.onSample=(sample,phase)=>{
+  displayed={a:sample.a,b:sample.b,type:sample.type};
+  updateReadout(phase==='before'?sample.before:sample.after,sample.target);
+  $('current-calculation').textContent=sample.a+' '+FAMILIES[sample.type].symbol+' '+sample.b;
+  $('last-correction').textContent=phase==='after'?fmt(sample.before)+' → '+fmt(sample.after):'';
+  renderInputControls();
+  if(phase==='after'){const wasIntro=introAnimating&&game.data.phase===0;introAnimating=false;$('train').disabled=false;if(wasIntro){measure();render();}}
+};
+
+function toast(message) { $('toast').textContent=message;$('toast').classList.add('visible');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>$('toast').classList.remove('visible'),4200); }
+function save() {
+  try { localStorage.setItem(SAVE_KEY,JSON.stringify(game.exportState()));dirty=false;storageFailed=false;$('save-status').textContent='Progression sauvegardée ici';$('save-status').classList.remove('failed'); }
+  catch { storageFailed=true;$('save-status').textContent='Sauvegarde indisponible · exporte ta progression';$('save-status').classList.add('failed'); }
+}
+function sound(success=false) {
+  if(!game.data.preferences.sound)return;
+  try {
+    audioContext ||= new (window.AudioContext||window.webkitAudioContext)();
+    if(audioContext.state==='suspended')audioContext.resume();
+    const oscillator=audioContext.createOscillator(),gain=audioContext.createGain();
+    oscillator.type='sine';oscillator.frequency.setValueAtTime(success?640:420+Math.min(220,game.trained/50),audioContext.currentTime);
+    gain.gain.setValueAtTime(.0001,audioContext.currentTime);gain.gain.exponentialRampToValueAtTime(.035,audioContext.currentTime+.012);gain.gain.exponentialRampToValueAtTime(.0001,audioContext.currentTime+.18);
+    oscillator.connect(gain);gain.connect(audioContext.destination);oscillator.start();oscillator.stop(audioContext.currentTime+.2);
+  } catch { /* Le son est facultatif. */ }
+}
+function showNetwork() {
+  const example=game.data.selected||preview,type=game.data.family;
+  const prediction=game.lab.predict(type,example.a,example.b);
+  displayed={...example,type};
+  networkView.setState({network:game.lab.getNetwork(type),prediction,example:{...example,type,target:game.target(type,example.a,example.b)},reducedMotion:game.data.preferences.reducedMotion||reduceBySystem});
+  updateReadout(prediction.value,game.target(type,example.a,example.b));
+  $('current-calculation').textContent=example.a+' '+FAMILIES[type].symbol+' '+example.b;
+  renderInputControls();
+}
+function renderInputControls() {
+  const maximum=game.curriculum==='small'?4:9;
+  const key=game.data.family+':'+maximum;
+  if(key!==inputControlsKey){
+    for(const [id,min] of [['input-a',0],['input-b',game.data.family==='div'?1:0]]){
+      $(id).replaceChildren(...Array.from({length:maximum-min+1},(_,index)=>{const option=document.createElement('option');option.value=String(index+min);option.textContent=String(index+min);return option;}));
+    }
+    inputControlsKey=key;
+  }
+  const example=game.data.selected||displayed;
+  $('input-a').value=String(example.a);$('input-b').value=String(example.b);
+  $('input-symbol').textContent=FAMILIES[game.data.family].symbol;
+}
+function chooseInputs() {
+  const a=Number($('input-a').value),b=Number($('input-b').value);
+  if(!game.selectExample(a,b))return;
+  game.data.autoEnabled=false;autoCredit=0;introAnimating=false;lastSample=null;
+  preview={a,b};dirty=true;showNetwork();render();
+  if(view==='repertoire')renderHeatmap();
+}
+
+function updateReadout(prediction,target) { $('prediction').textContent=fmt(prediction);$('target').textContent=Number.isInteger(target)?integer.format(target):fmt(target);$('error').textContent=fmt(Math.abs(prediction-target)); }
+function changeView(next) {
+  if(next==='repertoire'&&game.data.phase<1){toast('Le répertoire s’ouvre après le premier déclic.');return;}
+  if(next==='calculator'&&game.data.phase<3){toast('La calculatrice s’ouvre quand la table d’addition est prête.');return;}
+  view=next;
+  document.querySelectorAll('.view-tab').forEach(button=>{const selected=button.dataset.view===next;button.classList.toggle('selected',selected);button.setAttribute('aria-selected',String(selected));});
+  for(const name of ['machine','repertoire','calculator'])$(name+'-view').hidden=name!==next;
+  if(next==='repertoire')renderHeatmap();
+  if(next==='machine')showNetwork();
+  if(next==='calculator')renderCalculatorKeys();
+}
+function train(count,manual) {
+  if(manual&&introAnimating&&game.data.phase===0)return;
+  const sample=game.train(count,{manual});if(!sample)return;
+  lastSample=sample;preview={a:sample.a,b:sample.b};dirty=true;
+  introAnimating=manual&&game.data.phase===0;
+  if(view==='machine')networkView.animate(sample,game.lab.getNetwork(game.data.family));
+  else {displayed={a:sample.a,b:sample.b,type:sample.type};updateReadout(sample.after,sample.target);introAnimating=false;}
+  if(manual)sound();
+  if(manual||performance.now()-lastMeasured>600)measure();
+  if(manual)render();
+}
+
+function measure() {
+  game.refreshMetrics();lastMeasured=performance.now();
+  if(introAnimating&&game.data.phase===0)return;
+  const milestone=game.checkMilestone();
+  if(milestone){
+    introAnimating=false;lastSample=null;preview={a:2,b:3};inputControlsKey='';
+    if(milestone.phase===1)game.selectExample(2,3);
+    const discoveries=['','Autres additions disponibles.','100 additions disponibles.','Calculatrice et soustraction disponibles.','Multiplication disponible.','Division disponible.','Parcours terminé.'];
+    toast(discoveries[milestone.phase]);sound(true);
+    showNetwork();renderChapters();renderOperations();renderUpgrades();
+    if(view==='calculator')renderCalculatorKeys();save();$('last-correction').textContent='';
+  }
+  if(view==='repertoire')renderHeatmap();
+}
+
+function renderChapters() {
+  $('chapters').replaceChildren(...CHAPTERS.slice(0,6).map((chapter,i)=>{
+    const li=document.createElement('li');li.className='chapter'+(i===game.data.phase?' current':i<game.data.phase?' completed':'');
+    if(i===game.data.phase)li.setAttribute('aria-current','step');
+    const marker=document.createElement('span');marker.className='chapter-marker';marker.textContent=i<game.data.phase?'✓':String(i+1).padStart(2,'0');
+    const title=document.createElement('strong');title.textContent=chapter.name;
+    const subtitle=document.createElement('small');subtitle.textContent=chapter.subtitle;
+    li.append(marker,title,subtitle);return li;
+  }));
+}
+function renderOperations() {
+  $('operation-switcher').replaceChildren(...game.unlocked.map(type=>{
+    const family=FAMILIES[type],button=document.createElement('button');
+    button.type='button';button.className='operation-button'+(type===game.data.family?' active':'');
+    button.textContent=family.symbol;button.setAttribute('aria-label',family.label);button.setAttribute('aria-pressed',String(type===game.data.family));
+    button.addEventListener('click',()=>{game.selectFamily(type);lastSample=null;preview={a:2,b:3};introAnimating=false;inputControlsKey='';renderOperations();showNetwork();render();if(view==='repertoire')renderHeatmap();dirty=true;});
+    return button;
+  }));
+}
+
+function levelDescription(upgrade) {
+  const level=game.data.upgrades[upgrade.id];
+  return upgrade.id==='batch'?`${game.clickPower} exemple${game.clickPower>1?'s':''} / clic`:upgrade.id==='auto'?`${AUTO_RATES[level]} exemple${AUTO_RATES[level]>1?'s':''} / s`:level?'Répétition active':'Cibler les erreurs';
+}
+function renderUpgrades() {
+  $('upgrades').replaceChildren(...UPGRADES.map(upgrade=>{
+    const item=document.createElement('article');item.className='upgrade';item.dataset.upgrade=upgrade.id;
+    const button=document.createElement('button');button.type='button';button.dataset.buy=upgrade.id;
+    button.append(document.createElement('span'),document.createElement('span'));
+    const detail=document.createElement('small');detail.dataset.level=upgrade.id;
+    button.addEventListener('click',()=>{if(game.purchase(upgrade.id)){
+      if(upgrade.id==='auto'){game.data.selected=null;autoCredit=0;}
+      dirty=true;sound(true);updateUpgrades();render();save();
+    }});
+    item.append(button,detail);return item;
+  }));
+  updateUpgrades();
+}
+
+function updateUpgrades() {
+  let visible=0;
+  for(const upgrade of UPGRADES){
+    const item=document.querySelector('[data-upgrade="'+upgrade.id+'"]'),button=item.querySelector('button');
+    const level=game.data.upgrades[upgrade.id],price=upgrade.prices[level];
+    const locked=game.total<upgrade.minExamples||game.data.phase<upgrade.minPhase,maxed=price===undefined;
+    item.hidden=locked;if(locked)continue;visible++;
+    const label=upgrade.id==='batch'?'Grouper les billes':upgrade.id==='auto'?(level?'Accélérer':'Automatiser'):'Cibler les erreurs';
+    button.disabled=maxed||game.data.balance<price;
+    button.firstElementChild.textContent=maxed?(upgrade.id==='focus'?'Erreurs ciblées':'Maximum atteint'):label;
+    button.lastElementChild.textContent=maxed?'':integer.format(price)+' crédits';
+    const detail=upgrade.id==='batch'?game.clickPower+(maxed?'':' → '+(game.clickPower*2))+' exemples / clic':upgrade.id==='auto'?AUTO_RATES[level]+(maxed?'':' → '+AUTO_RATES[level+1])+' exemples / s':'1 exemple sur 5';
+    item.querySelector('small').textContent=detail;
+    button.setAttribute('aria-label',button.firstElementChild.textContent+(maxed?'':', '+price+' crédits, '+detail));
+  }
+  $('workshop-panel').hidden=visible===0;
+}
+
+function renderChart() {
+  const points=game.data.histories[game.scopeKey]||[];
+  if(!points.length)return;
+  const max=Math.max(.05,...points.map(p=>p.mae)),last=points.at(-1).trained,first=points[0].trained;
+  const values=points.map((p,i)=>[points.length===1?2:2+(p.trained-first)/Math.max(1,last-first)*256,65-p.mae/max*58]);
+  const line=values.map((p,i)=>`${i?'L':'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+  $('chart-line').setAttribute('d',line);$('chart-area').setAttribute('d',line+` L${values.at(-1)[0]},70 L${values[0][0]},70 Z`);
+  $('sparkline').setAttribute('aria-label',`Erreur moyenne sur ${game.metrics.total} calculs : ${fmt(points[0].mae)} au début de la courbe, ${fmt(points.at(-1).mae)} maintenant.`);
+}
+function render() {
+  const metrics=game.metrics,phase=game.data.phase;
+  $('balance').textContent=integer.format(game.data.balance);$('total-count').textContent=integer.format(game.total);
+  $('current-calculation').textContent=displayed.a+' '+FAMILIES[displayed.type].symbol+' '+displayed.b;
+  $('current-calculation').hidden=phase>=1;
+  $('input-controls').hidden=phase<1;
+  $('view-navigation').hidden=phase<1;
+  $('repertoire-tab').hidden=phase<1;$('repertoire-tab').disabled=phase<1;
+  $('repertoire-tab').firstChild.textContent=metrics.total+' calculs';
+  $('calculator-tab').hidden=phase<3;$('calculator-tab').disabled=phase<3;
+  $('operation-switcher').hidden=game.unlocked.length<2;
+  $('metrics-panel').hidden=phase<1;
+  $('train-label').textContent=game.clickPower===1?'Lancer une bille':'Lancer '+integer.format(game.clickPower)+' billes';
+  $('train').disabled=introAnimating&&phase===0;
+  $('auto-toggle').hidden=game.data.upgrades.auto===0;
+  $('auto-toggle').disabled=false;
+  $('auto-toggle').setAttribute('aria-pressed',String(game.data.upgrades.auto>0&&game.data.autoEnabled));
+  $('auto-label').textContent=game.data.autoEnabled?AUTO_RATES[game.data.upgrades.auto]+' / s · pause':'Reprendre';
+  $('auto-toggle').querySelector('.auto-icon').textContent=game.data.autoEnabled?'Ⅱ':'▷';
+  $('sample-control-wrap').hidden=!game.data.selected||phase<2;
+  $('sample-clear').textContent='Tous les cas';
+  $('metric-mae').textContent=fmt(metrics.mae);$('metric-accuracy').textContent=percent(metrics.accuracy);$('metric-rate').textContent=game.autoRate+' / s';
+  $('metric-accuracy-label').textContent='Écart < '+String(metrics.tolerance).replace('.',',');
+  $('metrics-scope').textContent=metrics.total+' calculs';
+  renderInputControls();updateUpgrades();renderChart();lastUi=performance.now();
+}
+
+function renderHeatmap() {
+  const type=game.data.family,max=game.curriculum==='small'?4:9,selected=game.data.selected;
+  const fragment=document.createDocumentFragment();
+  $('heatmap').style.gridTemplateColumns='repeat('+(max+2)+', minmax(0, 1fr))';
+  for(let row=-1;row<=max;row++)for(let col=-1;col<=max;col++) {
+    if(row===-1||col===-1){const span=document.createElement('span');span.className='heatmap-heading';span.textContent=row===-1&&col===-1?FAMILIES[type].symbol:row===-1?col:row;fragment.append(span);continue;}
+    const button=document.createElement('button');button.className='heatmap-cell';button.type='button';
+    if(type==='div'&&col===0){button.disabled=true;button.textContent='—';button.setAttribute('aria-label','Division par zéro non définie');fragment.append(button);continue;}
+    const raw=game.lab.predict(type,row,col).value,target=game.target(type,row,col),error=Math.abs(raw-target),quality=Math.exp(-error/(type==='div'?.3:1.4));
+    button.style.setProperty('--cell-color',`rgb(${Math.round(248-quality*69)},${Math.round(247-quality*35)},${Math.round(242-quality*47)})`);
+    button.textContent=type==='div'?raw.toFixed(1).replace('.',','):String(Math.round(raw));button.title=`${row} ${FAMILIES[type].symbol} ${col} ≈ ${fmt(raw)} · erreur ${fmt(error)}`;
+    button.setAttribute('aria-label',button.title);button.classList.toggle('unseen',row>max||col>max);button.classList.toggle('selected',!!selected&&selected.a===row&&selected.b===col);
+    button.disabled=row>max||col>max;
+    button.addEventListener('click',()=>{if(game.selectExample(row,col)){game.data.autoEnabled=false;autoCredit=0;preview={a:row,b:col};lastSample=null;renderHeatmap();dirty=true;}});
+    fragment.append(button);
+  }
+  $('heatmap').replaceChildren(fragment);$('grid-scope').textContent=FAMILIES[type].label;
+  if(selected){const value=game.lab.predict(type,selected.a,selected.b).value,target=game.target(type,selected.a,selected.b);$('sample-readout').textContent=`${selected.a} ${FAMILIES[type].symbol} ${selected.b} : ${fmt(value)} proposé, ${fmt(target)} attendu. Erreur : ${fmt(Math.abs(value-target))}.`;}
+  else $('sample-readout').textContent='Choisir un calcul pour l’entraîner.';
+}
+function renderCalculatorKeys() {
+  const keys=['7','8','9','÷','4','5','6','×','1','2','3','−','0',',','C','+'];
+  const types={'÷':'div','×':'mul','−':'sub','+':'add'};
+  $('calculator-keys').replaceChildren(...keys.map(key=>{
+    const button=document.createElement('button');button.type='button';button.textContent=key;
+    if(types[key]){button.className='operation-key';button.disabled=!game.unlocked.includes(types[key]);button.setAttribute('aria-label',FAMILIES[types[key]].label);}
+    if(key==='C')button.setAttribute('aria-label','Effacer le calcul');
+    button.addEventListener('click',()=>{const input=$('calculation');if(key==='C')input.value='';else input.value+=key;input.focus();});return button;
+  }));
+}
+function calculate(event) {
+  event.preventDefault();const output=$('calculation-output');output.classList.remove('error');output.replaceChildren();$('calculation-trace').hidden=true;
+  try {
+    const result=evaluateExpression($('calculation').value,game.lab,game.unlocked);
+    const label=document.createElement('span');label.textContent='Estimation';
+    const estimate=document.createElement('strong');estimate.textContent=`≈ ${new Intl.NumberFormat('fr-FR',{minimumFractionDigits:4,maximumFractionDigits:4}).format(result.estimate)}`;
+    const rounded=document.createElement('small');rounded.textContent=`Résultat composé : ${new Intl.NumberFormat('fr-FR',{maximumFractionDigits:4}).format(result.result)}`;
+    const context=document.createElement('small');context.textContent='Opérations utilisées : '+result.uses.map(type=>FAMILIES[type]?.label.toLowerCase()||type).join(', ')+'.';
+    output.append(label,estimate,rounded,context);
+    $('calculation-steps').replaceChildren(...result.trace.map(step=>{const p=document.createElement('p');p.textContent=step;return p;}));$('calculation-trace').hidden=false;
+  } catch(error){output.classList.add('error');output.textContent=error.message||'Ce calcul ne peut pas être effectué.';}
+}
+function applyPreferences() { const reduced=game.data.preferences.reducedMotion||reduceBySystem;document.body.classList.toggle('reduce-motion',reduced);$('sound-enabled').checked=game.data.preferences.sound;$('motion-reduced').checked=game.data.preferences.reducedMotion;showNetwork(); }
+function reset() { introAnimating=false;inputControlsKey='';game=new GameSession();lastSample=null;preview={a:2,b:3};autoCredit=0;view='machine';document.querySelectorAll('dialog[open]').forEach(dialog=>dialog.close());renderChapters();renderOperations();renderUpgrades();applyPreferences();changeView('machine');render();save();toast('Une nouvelle bille. Une nouvelle expérience.'); }
+
+$('train').addEventListener('click',()=>train(game.clickPower,true));
+$('input-a').addEventListener('change',chooseInputs);
+$('input-b').addEventListener('change',chooseInputs);
+document.addEventListener('keydown',event=>{if(event.code!=='Space'||event.altKey||event.ctrlKey||event.metaKey)return;const target=event.target;if(target.closest('input,textarea,select,button,summary,a,[contenteditable]')||document.querySelector('dialog[open]'))return;event.preventDefault();train(game.clickPower,true);});
+document.querySelectorAll('.view-tab').forEach(button=>button.addEventListener('click',()=>changeView(button.dataset.view)));
+$('auto-toggle').addEventListener('click',()=>{game.data.autoEnabled=!game.data.autoEnabled;if(game.data.autoEnabled)game.data.selected=null;autoCredit=0;dirty=true;render();});
+$('sample-clear').addEventListener('click',()=>{game.data.selected=null;dirty=true;render();});
+$('watch-sample').addEventListener('click',()=>changeView('machine'));
+$('calculator-form').addEventListener('submit',calculate);
+$('settings-open').addEventListener('click',()=>{$('settings-dialog').showModal();});
+$('help-open').addEventListener('click',()=>{$('help-dialog').showModal();});
+document.querySelectorAll('.dialog-close').forEach(button=>button.addEventListener('click',()=>button.closest('dialog').close()));
+document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('click',event=>{if(event.target===dialog){const bounds=dialog.getBoundingClientRect();if(event.clientX<bounds.left||event.clientX>bounds.right||event.clientY<bounds.top||event.clientY>bounds.bottom)dialog.close();}}));
+$('sound-enabled').addEventListener('change',event=>{game.data.preferences.sound=event.target.checked;dirty=true;sound();save();});
+$('motion-reduced').addEventListener('change',event=>{networkView.finishImmediately();game.data.preferences.reducedMotion=event.target.checked;dirty=true;applyPreferences();save();});
+$('export-save').addEventListener('click',()=>{save();const blob=new Blob([JSON.stringify(game.exportState(),null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`fakir-progression-${new Date().toISOString().slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Progression exportée avec les poids appris.');});
+$('import-save').addEventListener('click',()=>$('save-file').click());
+$('save-file').addEventListener('change',async event=>{const file=event.target.files[0];if(!file)return;try{if(file.size>2_000_000)throw new Error('Ce fichier est trop volumineux.');const candidate=new GameSession();candidate.restore(await file.text());game=candidate;introAnimating=false;inputControlsKey='';lastSample=null;preview=game.selectedExample;autoCredit=0;renderChapters();renderOperations();renderUpgrades();applyPreferences();if(game.data.phase<3&&view==='calculator')changeView('machine');if(game.data.phase<1&&view==='repertoire')changeView('machine');if(view==='calculator')renderCalculatorKeys();if(view==='repertoire')renderHeatmap();render();save();$('settings-dialog').close();toast('Ta machine a retrouvé ses apprentissages.');}catch(error){toast(error.message||'Ce fichier ne peut pas être importé.');}finally{event.target.value='';}});
+$('reset-game').addEventListener('click',()=>{$('settings-dialog').close();$('reset-dialog').showModal();});
+$('confirm-reset').addEventListener('click',reset);
+window.addEventListener('pagehide',()=>{if(dirty)save();});
+document.addEventListener('visibilitychange',()=>{autoCredit=0;if(document.hidden&&dirty)save();});
+
+renderChapters();renderOperations();renderUpgrades();renderCalculatorKeys();applyPreferences();render();
+if(storageFailed){$('save-status').textContent='Sauvegarde non chargée · export disponible';$('save-status').classList.add('failed');toast('La progression précédente n’a pas pu être chargée. Tu peux importer une sauvegarde depuis les réglages.');}
+let lastTick=performance.now();
+setInterval(()=>{const now=performance.now(),delta=Math.min(.5,(now-lastTick)/1000);lastTick=now;if(document.hidden)return;if(game.autoRate>0){autoCredit+=delta*game.autoRate;const count=Math.floor(autoCredit);if(count){autoCredit-=count;train(count,false);}}if(now-lastUi>400)render();},200);
+setInterval(()=>{if(dirty)save();},5000);
+
+return Object.freeze({  });
+})();
+})();
+</script>
+</body>
+</html>

@@ -17,8 +17,8 @@
     <section class="workbench" aria-label="Machine">
       <nav id="view-navigation" class="view-tabs" aria-label="Vues" hidden>
         <button class="view-tab selected" data-view="machine" aria-selected="true">Machine</button>
-        <button id="repertoire-tab" class="view-tab" data-view="repertoire" aria-selected="false" hidden>Répertoire<span class="tab-lock" hidden></span></button>
-        <button id="calculator-tab" class="view-tab" data-view="calculator" aria-selected="false" hidden>Calculatrice<span class="tab-lock" hidden></span></button>
+        <button id="repertoire-tab" class="view-tab" data-view="repertoire" aria-selected="false" hidden>Répertoire</button>
+        <button id="calculator-tab" class="view-tab" data-view="calculator" aria-selected="false" hidden>Calculatrice</button>
       </nav>
 
       <div id="machine-view" class="view-panel">
@@ -32,7 +32,7 @@
           </div>
 
           <div class="network-stage">
-            <canvas id="network" width="480" height="340" aria-label="Trajet de la bille et réglage des connexions" role="img"></canvas>
+            <canvas id="network" width="480" height="560" aria-label="Plateau d’apprentissage" role="img"></canvas>
           </div>
 
           <div class="prediction-row">
@@ -41,11 +41,11 @@
             <div><span>Écart</span><strong id="error">5,000</strong></div>
           </div>
           <div class="training-controls">
-            <button id="train" class="train-button"><span id="train-label">Lâcher une bille</span><small id="train-detail" hidden>1 exemple</small></button>
+            <button id="train" class="train-button"><span id="train-label">Lancer une bille</span></button>
             <button id="auto-toggle" class="auto-button" disabled aria-pressed="false" hidden><span class="auto-icon" aria-hidden="true"></span><span id="auto-label">Automatique</span></button>
           </div>
-          <p class="example-count">Exemples : <strong id="total-count">0</strong></p>
-          <div id="sample-control-wrap" class="sample-actions" hidden><button class="text-button" id="sample-clear">Reprendre le programme</button></div>
+          <p class="example-count">Exemples : <strong id="total-count">0</strong><span id="revision-count-wrap" hidden> · Révisions : <strong id="revision-count">0</strong></span></p>
+          <div id="sample-control-wrap" class="sample-actions" hidden><button class="text-button" id="sample-clear">Tous les cas</button></div>
         </div>
       </div>
 
@@ -54,7 +54,7 @@
           <div class="panel-heading"><h2>Répertoire</h2><span id="grid-scope">Addition</span></div>
           <div class="heatmap-wrap"><div id="heatmap" class="heatmap" aria-label="Résultats mesurés par calcul"></div></div>
           <div class="heatmap-legend"><span>Écart élevé</span><span class="color-ramp"></span><span>Faible</span></div>
-          <p class="sample-readout" id="sample-readout">Choisir un calcul.</p>
+          <p class="sample-readout" id="sample-readout">Choisir un calcul</p>
           <button id="watch-sample" class="secondary-button">Voir la bille</button>
         </section>
       </div>
@@ -64,12 +64,11 @@
           <h2>Calculatrice</h2>
           <label class="calc-label" for="calculation">Calcul</label>
           <form id="calculator-form">
-            <div class="calculator-input"><input id="calculation" inputmode="text" autocomplete="off" spellcheck="false" value="38 + 47" aria-describedby="calculator-hint" maxlength="32"><button type="submit" aria-label="Calculer">=</button></div>
+            <div class="calculator-input"><input id="calculation" inputmode="text" autocomplete="off" spellcheck="false" value="38 + 47" maxlength="32"><button type="submit" aria-label="Calculer">=</button></div>
           </form>
           <div id="calculator-keys" class="calculator-keys"></div>
-          <p id="calculator-hint" class="muted">Deux nombres, jusqu’à 999,99 chacun.</p>
           <div id="calculation-output" class="calculation-output" aria-live="polite"></div>
-          <details class="calculation-trace" id="calculation-trace" hidden><summary>Détail du calcul</summary><div id="calculation-steps"></div></details>
+          <details class="calculation-trace" id="calculation-trace" hidden><summary>Détail</summary><div id="calculation-steps"></div></details>
         </section>
       </div>
     </section>
@@ -86,8 +85,6 @@
           <div class="metric-row"><span>Erreur moyenne</span><strong id="metric-mae">5,000</strong></div>
           <div class="metric-row"><span id="metric-accuracy-label">Dans la tolérance</span><strong id="metric-accuracy">0 %</strong></div>
           <div class="metric-row"><span>Cadence</span><strong id="metric-rate">0 / s</strong></div>
-          <svg class="sparkline" id="sparkline" viewBox="0 0 260 70" role="img" aria-label="Évolution de l’erreur moyenne" hidden><defs><linearGradient id="chart-fill" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#222" stop-opacity=".15"/><stop offset="1" stop-color="#222" stop-opacity="0"/></linearGradient></defs><path id="chart-area" fill="url(#chart-fill)"/><path id="chart-line" fill="none" stroke="#222" stroke-width="1.5"/></svg>
-          <p id="measure-explanation" hidden></p>
         </section>
       </div>
     </aside>
@@ -95,49 +92,21 @@
 
   <footer class="page-footer"><button id="settings-open" class="text-button" aria-label="Ouvrir la partie et les sauvegardes">Partie</button></footer>
 
-  <div class="legacy-content" hidden>
-    <ol id="chapters"></ol>
-    <span id="chapter-kicker"></span>
-    <span id="chapter-title"></span>
-    <p id="chapter-description"></p>
-    <button id="help-open" type="button">Aide</button>
-    <span id="machine-status"></span>
-    <span id="network-size"></span>
-    <span id="network-phase"></span>
-    <span id="last-correction"></span>
-    <div class="milestone-card">
-      <span id="milestone-symbol"></span>
-      <strong id="milestone-title"></strong>
-      <span id="milestone-progress"></span>
-      <p id="milestone-description"></p>
-      <span id="milestone-bar"></span>
-    </div>
-  </div>
-
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-
-  <dialog id="help-dialog">
-    <div class="dialog-heading"><h2>Fonctionnement</h2><button class="icon-button dialog-close" aria-label="Fermer">×</button></div>
-    <p>Chaque bille est un exemple. Le réseau propose une réponse ; le professeur la compare à la cible et ajuste les poids.</p>
-    <p>Le plateau représente les connexions et leur correction. Ce n’est pas une simulation physique.</p>
-    <p>Les mesures portent sur le répertoire entraîné. Les règles de composition de la calculatrice sont fournies par le programme.</p>
-    <button class="secondary-button dialog-close">Fermer</button>
-  </dialog>
 
   <dialog id="settings-dialog">
     <div class="dialog-heading"><h2>Partie</h2><button class="icon-button dialog-close" aria-label="Fermer">×</button></div>
-    <p>La progression est conservée dans ce navigateur. Le distributeur fonctionne tant que l’onglet est visible.</p>
-    <p class="save-status" id="save-status">Progression sauvegardée ici</p>
+    <p class="save-status" id="save-status">Sauvegardée</p>
     <label class="setting-row"><span>Sons</span><input type="checkbox" id="sound-enabled"></label>
-    <label class="setting-row"><span>Réduire les animations</span><input type="checkbox" id="motion-reduced"></label>
+    <label class="setting-row"><span>Animations réduites</span><input type="checkbox" id="motion-reduced"></label>
     <div class="save-actions"><button class="secondary-button" id="export-save">Exporter</button><button class="secondary-button" id="import-save">Importer</button><input id="save-file" type="file" accept="application/json,.json" hidden></div>
+    <a id="previous-game" class="previous-game" href="./reference/fakir-v2.html" hidden>Partie précédente</a>
     <div class="reset-section"><button class="danger-button" id="reset-game">Recommencer</button></div>
-    <p class="settings-version">Fakir · version 2</p>
   </dialog>
 
   <dialog id="reset-dialog">
     <div class="dialog-heading"><h2>Recommencer ?</h2></div>
-    <p>La progression et les poids appris seront effacés. Tu peux d’abord exporter la partie.</p>
+    <p>Progression et apprentissages seront effacés.</p>
     <div class="save-actions"><button class="secondary-button dialog-close">Annuler</button><button id="confirm-reset" class="danger-button">Effacer et recommencer</button></div>
   </dialog>
 
