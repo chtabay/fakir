@@ -2,6 +2,8 @@
 
 **Une bille, une erreur, un déclic : une petite machine apprend à calculer.**
 
+[Jouer à Fakir](https://chtabay.github.io/fakir/)
+
 Fakir est un clicker jouable dans le navigateur. Chaque entraînement présente un exemple à un petit réseau neuronal : il propose une réponse, reçoit une correction, puis ajuste ses connexions. La progression ouvre de nouvelles opérations, des améliorations et une calculatrice qui réutilise les apprentissages.
 
 Le projet reprend l'idée d'un plateau de fakir pour rendre l'apprentissage visible. Le plateau représente le réseau ; les billes et les lumières illustrent ses étapes. Il ne s'agit pas d'une simulation physique de collisions.
