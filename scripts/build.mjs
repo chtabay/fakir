@@ -25,7 +25,7 @@ function assembleModule(source, file, available) {
       if (!specifier.startsWith('./') && !specifier.startsWith('../')) {
         throw new Error(`${file} : import externe non pris en charge (${specifier}).`);
       }
-      const dependency = posix.normalize(posix.join(posix.dirname(file), specifier));
+      const dependency = posix.normalize(posix.join(posix.dirname(file), specifier.split(/[?#]/, 1)[0]));
       const provided = available.get(dependency);
       if (!provided) throw new Error(`${file} : module absent ou chargé trop tard (${dependency}).`);
       const names = bindings.split(',').map(value => value.trim()).filter(Boolean).map(binding => {
@@ -82,9 +82,9 @@ async function build() {
   const inlineScript = bundle.replace(/<\/script/gi, match => `<\\/${match.slice(2)}`);
   new Script(inlineScript, { filename: 'fakir-inline.js' });
   const faviconURI = `data:image/svg+xml;base64,${Buffer.from(favicon).toString('base64')}`;
-  html = replaceOnce(html, /<link\b[^>]*\bhref=['"]\.\/style\.css['"][^>]*>/gi,
+  html = replaceOnce(html, /<link\b[^>]*\bhref=['"]\.\/style\.css(?:\?[^'"<>]*)?['"][^>]*>/gi,
     `<style>\n${css.replace(/<\/style/gi, match => `<\\/${match.slice(2)}`)}\n</style>`, 'Feuille de style');
-  html = replaceOnce(html, /<script\b[^>]*\bsrc=['"]\.\/js\/game\.js['"][^>]*>\s*<\/script\s*>/gi,
+  html = replaceOnce(html, /<script\b[^>]*\bsrc=['"]\.\/js\/game\.js(?:\?[^'"<>]*)?['"][^>]*>\s*<\/script\s*>/gi,
     `<script>\n${inlineScript}\n</script>`, 'Script principal');
   html = html.replace(/\b(href|src)=(['"])\.\/favicon\.svg\2/g, (_, attribute, quote) => `${attribute}=${quote}${faviconURI}${quote}`);
   html = html.replace(/\bhref=(['"])\.\/\1/g, 'href="#"');

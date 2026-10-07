@@ -3,7 +3,7 @@
  * angular guides. The only learned quantities are these guides. The final
  * position is read on a fixed scale. Targets never enter geometric inference.
  */
-import { LBFGS, ObservedExamples } from './optimizer.js';
+import { LBFGS, ObservedExamples } from './optimizer.js?v=3.0.0';
 
 export const OPERATIONS = Object.freeze(['add', 'sub', 'mul', 'div']);
 export const RAY_GEOMETRY = Object.freeze({

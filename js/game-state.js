@@ -1,4 +1,4 @@
-import { LearningLab } from './learning.js';
+import { LearningLab } from './learning.js?v=3.0.0';
 
 export const FAMILIES = {
   add: { label: 'Addition', symbol: '+', unlock: 0 },

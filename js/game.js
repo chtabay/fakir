@@ -1,6 +1,6 @@
-import { GameSession, FAMILIES, UPGRADES, AUTO_RATES } from './game-state.js';
-import { NetworkView } from './network-view.js';
-import { evaluateExpression } from './calculator.js';
+import { GameSession, FAMILIES, UPGRADES, AUTO_RATES } from './game-state.js?v=3.0.0';
+import { NetworkView } from './network-view.js?v=3.0.0';
+import { evaluateExpression } from './calculator.js?v=3.0.0';
 
 const $=id=>document.getElementById(id);
 const SAVE_KEY='fakir-v3-progress';

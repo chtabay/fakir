@@ -66,3 +66,5 @@ Pour l'interface, vérifier aussi dans le navigateur un lancement, une correctio
 3. Attends le déploiement et ouvre l'adresse affichée par GitHub.
 
 Les chemins relatifs fonctionnent sous l'adresse d'un dépôt. Aucun workflow de compilation personnalisé n'est nécessaire pour servir les sources. Voir la [documentation GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site).
+
+À chaque nouvelle version, mettre à jour ensemble la métadonnée `application-version` et les suffixes `?v=…` du HTML et des imports JavaScript. Ils évitent qu'une nouvelle page utilise des modules d'une ancienne version encore en cache. L'assemblage autonome résout les mêmes sources sans ces suffixes.
