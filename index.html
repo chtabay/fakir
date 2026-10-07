@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0c1213">
+  <meta name="description" content="Une bille, une erreur, un déclic. Entraînez une petite machine à calculer dans un clicker où l’apprentissage devient visible.">
+  <title>Fakir — la machine qui apprend</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <a class="skip-link" href="#train">Aller à la machine</a>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="Fakir, accueil"><img src="./favicon.svg" width="34" height="34" alt=""><span>fakir<span class="brand-dot">.</span></span><span class="brand-caption">la machine qui apprend</span></a>
+    <div class="top-actions"><div class="currency" title="Chaque exemple entraîné produit un éclat pour améliorer la machine."><span class="spark">✧</span><strong id="balance">0</strong><span>éclats</span></div><button id="settings-open" class="icon-button" aria-label="Ouvrir les réglages" title="Réglages"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3" fill="currentColor" stroke="none"/><circle cx="16" cy="17" r="3" fill="currentColor" stroke="none"/></svg></button></div>
+  </header>
+  <main class="app-shell">
+    <aside class="journey">
+      <div class="eyebrow">LE PARCOURS</div>
+      <ol id="chapters" class="chapters" aria-label="Étapes d’apprentissage"></ol>
+      <div class="journey-bottom"><span class="eyebrow">DEPUIS LE PREMIER CLIC</span><strong id="total-count">0</strong><span>exemples entraînés</span><div class="save-status" id="save-status">Progression sauvegardée ici</div></div>
+    </aside>
+    <section class="workbench">
+      <div class="section-heading"><div><div class="eyebrow" id="chapter-kicker">CHAPITRE 01 · LE PREMIER DÉCLIC</div><h1 id="chapter-title">Tout commence par une bille.</h1></div><button id="help-open" class="icon-button help-button" aria-label="Comprendre le fonctionnement">?</button></div>
+      <p class="chapter-description" id="chapter-description">Elle ne connaît pas encore 2 + 3. Laisse-la essayer.</p>
+      <nav class="view-tabs" aria-label="Vues de la machine"><button class="view-tab selected" data-view="machine" aria-selected="true">La machine</button><button class="view-tab" data-view="repertoire" aria-selected="false" id="repertoire-tab">Le répertoire <span class="tab-lock">· bientôt</span></button><button class="view-tab" data-view="calculator" aria-selected="false" id="calculator-tab">La calculatrice <span class="tab-lock">· bientôt</span></button></nav>
+      <div id="machine-view" class="view-panel">
+        <div class="machine-card">
+          <div class="machine-toolbar"><div class="operation-switcher" id="operation-switcher" aria-label="Opération entraînée"></div><span class="machine-status" id="machine-status">Prête pour un exemple</span></div>
+          <div class="network-stage"><canvas id="network" aria-label="Réseau neuronal : les connexions changent à chaque correction" role="img"></canvas><div class="network-caption"><span id="network-size">2 entrées · 24 neurones · 1 sortie</span><span id="network-phase">PRÉDIRE · COMPARER · CORRIGER</span></div></div>
+          <div class="prediction-row"><div><span>La machine propose</span><strong id="prediction">0,000</strong></div><div><span>Le professeur attend</span><strong id="target">5</strong></div><div><span>Écart absolu</span><strong id="error">5,000</strong></div></div>
+          <div class="training-controls"><button id="train" class="train-button"><span class="button-orb"></span><span><strong id="train-label">Lâcher une bille</strong><small id="train-detail">1 exemple · touche Espace</small></span><span class="button-plus">+</span></button><button id="auto-toggle" class="auto-button" disabled aria-pressed="false"><span class="auto-icon">Ⅱ</span><span id="auto-label">Automate en attente</span></button></div>
+          <div class="training-footnote"><span id="last-correction">Chaque clic : une prédiction, puis une correction.</span><span id="sample-control-wrap" hidden><button class="text-button" id="sample-clear">Reprendre le programme</button></span></div>
+        </div>
+        <div class="milestone-card"><div class="milestone-symbol" id="milestone-symbol">01</div><div class="milestone-main"><div class="milestone-title"><strong id="milestone-title">Apprivoiser 2 + 3</strong><span id="milestone-progress">0 / 12</span></div><p id="milestone-description">12 exemples et une erreur inférieure à 0,35.</p><div class="progress-track"><span id="milestone-bar"></span></div></div></div>
+      </div>
+      <div id="repertoire-view" class="view-panel" hidden>
+        <section class="repertoire-card"><div class="panel-heading"><div><h2>Ce qu’elle sait vraiment.</h2><p>Une case, un calcul. Choisis-en un pour l’observer.</p></div><span id="grid-scope" class="small-chip">Addition</span></div><div class="heatmap-wrap"><div id="heatmap" class="heatmap" aria-label="Résultats mesurés par calcul"></div></div><div class="heatmap-legend"><span>À apprendre</span><span class="color-ramp"></span><span>Erreur proche de zéro</span></div><div class="sample-readout" id="sample-readout">Les couleurs viennent des réponses du modèle, sans correction.</div><button id="watch-sample" class="secondary-button">Observer dans la machine</button></section>
+      </div>
+      <div id="calculator-view" class="view-panel" hidden>
+        <section class="calculator-card"><div class="panel-heading"><div><h2>Et si on lui demandait autre chose ?</h2><p>Des calculs composés à partir de ses petites opérations apprises.</p></div></div><label class="calc-label" for="calculation">Ton calcul</label><form id="calculator-form"><div class="calculator-input"><input id="calculation" inputmode="text" autocomplete="off" spellcheck="false" value="38 + 47" aria-describedby="calculator-hint" maxlength="32"><button type="submit" aria-label="Calculer avec la machine">=</button></div></form><div id="calculator-keys" class="calculator-keys"></div><p id="calculator-hint" class="muted">Deux nombres jusqu’à 999,99. Utilise les opérations déjà débloquées.</p><div id="calculation-output" class="calculation-output" aria-live="polite"><span>Elle est prête. À toi de lui proposer un calcul.</span></div><details class="calculation-trace" id="calculation-trace" hidden><summary>Voir les petites opérations utilisées</summary><div id="calculation-steps"></div></details></section>
+      </div>
+      <div class="bottom-note"><span>Un petit réseau. De vrais essais. Une progression à ton rythme.</span><span>Tout se passe sur ton appareil.</span></div>
+    </section>
+    <aside class="workshop">
+      <div class="eyebrow">L’ATELIER</div><h2>Donner de l’élan.</h2><p class="workshop-intro">Les éclats gagnés font évoluer la machine.</p><div id="upgrades" class="upgrades"></div>
+      <section class="measure-card"><div class="measure-heading"><span class="eyebrow">LA MESURE DU PROGRÈS</span><span id="metrics-scope">1 calcul</span></div><div class="metric-number"><strong id="metric-mae">5,000</strong><span>d’erreur moyenne</span></div><svg class="sparkline" id="sparkline" viewBox="0 0 260 70" role="img" aria-label="Évolution de l’erreur moyenne"><defs><linearGradient id="chart-fill" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#87eaca" stop-opacity=".22"/><stop offset="1" stop-color="#87eaca" stop-opacity="0"/></linearGradient></defs><path id="chart-area" fill="url(#chart-fill)"/><path id="chart-line" fill="none" stroke="#87eaca" stroke-width="2" stroke-linecap="round"/></svg><div class="metric-row"><span id="metric-accuracy-label">Dans la tolérance</span><strong id="metric-accuracy">0 %</strong></div><div class="metric-row"><span>Entraînement automatique</span><strong id="metric-rate">0 / s</strong></div><p class="measure-explanation" id="measure-explanation">Mesuré en demandant 2 + 3 au modèle.</p></section>
+    </aside>
+  </main>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <dialog id="help-dialog"><div class="dialog-heading"><h2>À l’intérieur de Fakir.</h2><button class="icon-button dialog-close" aria-label="Fermer">×</button></div><p>Chaque bille est un exemple. Le réseau propose un résultat à partir de ses connexions. Le professeur compare ensuite cette proposition à la bonne réponse et ajuste les poids.</p><div class="help-steps"><div><strong>01 · Prédire</strong><p>La lumière descend. L’épaisseur des connexions représente leurs poids ; les points montrent l’activité des neurones.</p></div><div><strong>02 · Corriger</strong><p>Le retour ambré illustre la correction. Les valeurs changent vraiment, par rétropropagation.</p></div><div><strong>03 · Réutiliser</strong><p>Un même réseau apprend toute une famille. La calculatrice réutilise les opérations sur les chiffres ; les règles de retenue, d’emprunt et d’assemblage lui sont fournies.</p></div></div><p class="muted">Le plateau est une visualisation du réseau, pas une simulation physique. Les jauges mesurent les erreurs sur le répertoire étudié : elles ne prouvent pas, à elles seules, une généralisation à des nombres inconnus.</p><button class="secondary-button dialog-close">Retour à la machine</button></dialog>
+  <dialog id="settings-dialog"><div class="dialog-heading"><h2>Ton laboratoire.</h2><button class="icon-button dialog-close" aria-label="Fermer">×</button></div><p>La progression et les poids appris sont conservés dans ce navigateur, sur cet appareil. Le distributeur fonctionne tant que l’onglet est visible.</p><label class="setting-row"><span>Sons discrets</span><input type="checkbox" id="sound-enabled"></label><label class="setting-row"><span>Réduire les animations</span><input type="checkbox" id="motion-reduced"></label><div class="save-actions"><button class="secondary-button" id="export-save">Exporter la progression</button><button class="secondary-button" id="import-save">Importer une progression</button><input id="save-file" type="file" accept="application/json,.json" hidden></div><div class="reset-section"><p>Une nouvelle expérience efface la progression et les apprentissages sur cet appareil.</p><button class="danger-button" id="reset-game">Recommencer</button></div><p class="settings-version">Fakir · version 2 · apprentissage local</p></dialog>
+  <dialog id="reset-dialog"><div class="dialog-heading"><h2>Repartir de la première bille ?</h2></div><p>Les améliorations et les apprentissages actuels seront effacés. Tu peux d’abord exporter ta progression depuis les réglages.</p><div class="save-actions"><button class="secondary-button dialog-close">Garder mon expérience</button><button id="confirm-reset" class="danger-button">Effacer et recommencer</button></div></dialog>
+  <noscript><p class="noscript">Active JavaScript pour entraîner la machine. Aucun serveur ni compte n’est nécessaire.</p></noscript>
+  <script type="module" src="./js/game.js"></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.qa/
+.sites-runtime/
+.DS_Store
+*.log
+.env*
+!.env.example
